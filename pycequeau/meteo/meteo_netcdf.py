@@ -34,8 +34,8 @@ class StationNetCDF(MeteoStation):
         """
         self.ds = ds
 
-    @ classmethod
-    def charge_Meteo(cls, vars_path: str) -> StationNetCDF:
+    @classmethod
+    def charge_CORDEX_Meteo(cls,vars_path: str) -> StationNetCDF:
         """_summary_
 
         Args:
@@ -45,7 +45,24 @@ class StationNetCDF(MeteoStation):
             StationNetCDF: _description_
         """
         vars_dict = manage_files.dict_netCDF(vars_path)
-        ds = manage_files.get_meteo_Dataset(vars_dict)
+        ds = manage_files.get_CORDEX_Dataset(vars_dict)
+        # Construct object
+        obj = cls(ds)
+        return obj
+        pass
+    
+    @ classmethod
+    def charge_ERA_Meteo(cls, vars_path: str) -> StationNetCDF:
+        """_summary_
+
+        Args:
+            vars_path (str): _description_
+
+        Returns:
+            StationNetCDF: _description_
+        """
+        vars_dict = manage_files.dict_netCDF(vars_path)
+        ds = manage_files.get_ERA_Dataset(vars_dict)
         # Construct object
         obj = cls(ds)
         return obj
