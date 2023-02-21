@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 import pandas as pd
 import xarray as xr
 from osgeo import gdal, ogr
-from .base import MeteoStation
 from pycequeau.core import projections
-from pycequeau.physiographic.base import Basin
 from pycequeau.core import utils as u
-import matplotlib.pyplot as plt
 
 
 def create_grid_var(ds: xr.Dataset,
@@ -167,7 +163,6 @@ def create_station_table(CEregrid: gdal.Dataset,
     row, col = u.get_index_list(CEregrid,
                                 lat_utm,
                                 lon_utm)
-    # print(xy_pair.shape)
     # Create dataframe and append to the MeteoObject
     stations = pd.DataFrame(data={
         "id": ["NC-grid-"+str(num) for num in range(len(j[col]))],
@@ -196,5 +191,4 @@ def _appendCEgrid(ds: xr.Dataset,
                    long_name="Whole squares",
                    name="CE")
     )
-    # print(ds)
     return ds.assign(CE=dr.CE)

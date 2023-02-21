@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import xarray as xr
 from osgeo import gdal, ogr, osr
-from pycequeau.meteo.base import MeteoStation
-from pycequeau.core import projections
+# from pycequeau.meteo.base import MeteoStation
+# from pycequeau.core import projections
 import sys
 from pycequeau.physiographic.base import Basin
 import itertools
@@ -241,4 +241,3 @@ def find_nearest(array: np.ndarray, value: float):
     # array = np.asarray(array)
     # idx = (np.abs(array - value)).argmin()
     return (np.abs(array - value)).argmin()
-
