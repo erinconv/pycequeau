@@ -1,0 +1,7 @@
+*.csv
+*.png
+*.tif
+test.py
+plot_shp.py
+test.ipynb
+__pycache__/
