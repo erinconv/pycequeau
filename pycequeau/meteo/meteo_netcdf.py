@@ -27,10 +27,23 @@ __methods__ = [
 class StationNetCDF(MeteoStation):
     def __init__(self,
                  ds: xr.Dataset) -> None:
+        """_summary_
+
+        Args:
+            ds (xr.Dataset): _description_
+        """
         self.ds = ds
 
     @ classmethod
     def charge_Meteo(cls, vars_path: str) -> StationNetCDF:
+        """_summary_
+
+        Args:
+            vars_path (str): _description_
+
+        Returns:
+            StationNetCDF: _description_
+        """
         vars_dict = manage_files.dict_netCDF(vars_path)
         ds = manage_files.get_meteo_Dataset(vars_dict)
         # Construct object
@@ -39,6 +52,14 @@ class StationNetCDF(MeteoStation):
 
     @classmethod
     def _cequeau_grid(cls, ds: xr.Dataset) -> xr.Dataset:
+        """_summary_
+
+        Args:
+            ds (xr.Dataset): _description_
+
+        Returns:
+            xr.Dataset: _description_
+        """
         # Get unique values for CE
         CEs = np.unique(ds.CE.values)
         CEs = CEs[~np.isnan(CEs)]
@@ -57,37 +78,15 @@ class StationNetCDF(MeteoStation):
         # Convert date to datenum
         datenum = np.array(list(pd.to_datetime(ds.time.values).map(
             lambda x: 366.0 + x.toordinal())), dtype=np.float32)
-        for var_num,var_name in enumerate(var_list):
+        for var_num, var_name in enumerate(var_list):
             if var_num == 0:
                 dr = create_grid_var(ds, idx, idy, CEs, var_name, datenum)
             else:
-                dr = dr.merge(create_grid_var(ds, idx, idy, CEs, var_name, datenum))
-            dr[var_name].attrs=ds[var_name].attrs
+                dr = dr.merge(create_grid_var(
+                    ds, idx, idy, CEs, var_name, datenum))
+            dr[var_name].attrs = ds[var_name].attrs
             # break
-        print(dr)
-        # grid = xr.Dataset()
-        # for i in CEs:
-        #     x, y = np.where(ds.CE.values == i)
-
-        #     idx.append(x[0])
-        #     idy.append(y[0])
-
-        # # Create cequeau grid dataset
-        # df = pd.DataFrame({"pasTemp": ds.time.values},
-        #   columns=CEs)
-
-        # for i,j in zip(idx,idy):
-        #     print(ds.CE[i,j].values)
-        # print(max(idx),max(idy))
-        # print(ds.CE[idx,idy].values)
-        # print(ds.CE[i,j].values)
-        # ds.CE.values
-        # print(CEs)
-        # Create array to store values
-        # meteo_grid = xr.Dataset({
-
-        # })
-        pass
+        return dr
 
     def charge_Basin(self, basin: Basin):
         self.CEgrid = basin.CEgrid
@@ -97,6 +96,14 @@ class StationNetCDF(MeteoStation):
         self.grid_size = basin.grid_size
 
     def interpolation(self, method: str) -> xr.DataArray:
+        """_summary_
+
+        Args:
+            method (str): _description_
+
+        Returns:
+            xr.DataArray: _description_
+        """
         # Get stations table
         self.stations_table()
         # TODO: Allow to choose btween different options
@@ -107,6 +114,8 @@ class StationNetCDF(MeteoStation):
         return dsi
 
     def stations_table(self):
+        """_summary_
+        """
         # Get x-y pairs
         xy_pair = get_netCDF_grids(self.ds,
                                    self.CEgrid,
