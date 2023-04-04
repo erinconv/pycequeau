@@ -14,7 +14,6 @@ def convert_coords_to_index(df: gpd.GeoDataFrame,
     band = dataset.GetRasterBand(1)
     cols = dataset.RasterXSize
     rows = dataset.RasterYSize
-    data = band.ReadAsArray(0, 0, cols, rows)
     df2 = pd.concat([df, pd.DataFrame(columns=["col_min", "row_min", "col_max", "row_max"],
                                       index=df.index)], axis=1)
     transform = dataset.GetGeoTransform()
@@ -49,8 +48,8 @@ def find_neighbors(gdf: gpd.GeoDataFrame,
             keep, neighbors) if CP[id] != name]
         neighbors = [name for name in neighbors if CP[id] != name]
         # add names of neighbors as NEIGHBORS value
-        gdf.at[index, "NEIGHBORS"] = neighbors
-        gdf.at[index, "KEEP"] = keep
+        gdf.loc[index, "NEIGHBORS"] = neighbors
+        gdf.loc[index, "KEEP"] = keep
     return gdf
 
 
@@ -123,10 +122,18 @@ def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
                 CP_fishnet.at[i, "CPid"] = 0.0
                 CP_fishnet.at[i, "Dissolve"] = 0
                 CP_fishnet.at[i, "CEid"] = 0
-            if CE_features.loc[CP["NEIGHBORS"], "maxFAC"].isnull().values.any() and CP["Dissolve"] == 1:
-                CP_fishnet.at[i, "CPid"] = 0.0
-                CP_fishnet.at[i, "Dissolve"] = 0
-                CP_fishnet.at[i, "CEid"] = 0
+            # Check if any of the neighbors has none maxFAC
+            if isinstance(CE_features.loc[CP["NEIGHBORS"], "maxFAC"],list):
+                # Here we check if the true value was taken from a list object
+                if CE_features.loc[CP["NEIGHBORS"], "maxFAC"].isnull().values.any() and CP["Dissolve"] == 1:
+                    CP_fishnet.at[i, "CPid"] = 0.0
+                    CP_fishnet.at[i, "Dissolve"] = 0
+                    CP_fishnet.at[i, "CEid"] = 0
+            else:
+                if CE_features.loc[CP["NEIGHBORS"], "maxFAC"] is None and CP["Dissolve"] == 1:
+                    CP_fishnet.at[i, "CPid"] = 0.0
+                    CP_fishnet.at[i, "Dissolve"] = 0
+                    CP_fishnet.at[i, "CEid"] = 0
             # Get the maximum index value of the neigbourhs in the subset
             # idx_max = CE_features["maxFAC"][CP["NEIGHBORS"]].isnull().values.any()
 
@@ -444,89 +451,99 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
     return CP_fishnet
 
 
-def compute_flow_path(flow_dir: np.ndarray,
-                      flow_acc: np.ndarray,
-                      flow_th: float) -> np.ndarray:
-    # Mask the flow accumulation based on the threshold
-    flow_accu_mask = (flow_acc > flow_th)
-    rows, cols = np.indices(flow_dir.shape)
-    stream_network = np.zeros_like(flow_dir)
-    counter = 1
-    for row in range(flow_dir.shape[0]):
-        for col in range(flow_dir.shape[1]):
-            if flow_accu_mask[row, col]:
-                next_row = row
-                next_col = col
-                # counter = 1
-                while True:
-                    direction = flow_accu_mask[next_row, next_col]
-                    if direction == 0:
-                        break
-                    next_row += [-1, -1, 0, 1, 1, 1, 0, -1][direction - 1]
-                    next_col += [0, 1, 1, 1, 0, -1, -1, -1][direction - 1]
-                    if stream_network[next_row, next_col] > 0:
-                        break
-                stream_network[row, col] = counter
-        # counter +=1
-    return stream_network
+# def compute_flow_path(flow_dir: np.ndarray,
+#                       flow_acc: np.ndarray,
+#                       flow_th: float) -> np.ndarray:
+#     # Mask the flow accumulation based on the threshold
+#     flow_accu_mask = (flow_acc > flow_th)
+#     rows, cols = np.indices(flow_dir.shape)
+#     stream_network = np.zeros_like(flow_dir)
+#     counter = 1
+#     for row in range(flow_dir.shape[0]):
+#         for col in range(flow_dir.shape[1]):
+#             if flow_accu_mask[row, col]:
+#                 next_row = row
+#                 next_col = col
+#                 # counter = 1
+#                 while True:
+#                     direction = flow_accu_mask[next_row, next_col]
+#                     if direction == 0:
+#                         break
+#                     next_row += [-1, -1, 0, 1, 1, 1, 0, -1][direction - 1]
+#                     next_col += [0, 1, 1, 1, 0, -1, -1, -1][direction - 1]
+#                     if stream_network[next_row, next_col] > 0:
+#                         break
+#                 stream_network[row, col] = counter
+#         # counter +=1
+#     return stream_network
+
+# Compute the mean altitude within each CE and CP
+def mean_altitudes(CE_fishnet: gpd.GeoDataFrame,
+                   CP_fishnet: gpd.GeoDataFrame,
+                   DEM: str):
+    # Add altitude column to each dataset
+    CE_fishnet = CE_fishnet.reindex(columns=CE_fishnet.columns.tolist() + ['altitude'])
+    CE_fishnet["altitude"] = None
+    CP_fishnet = CP_fishnet.reindex(columns=CP_fishnet.columns.tolist() + ['altitude'])
+    CP_fishnet["altitude"] = None
+
+    # Compute the zonal statistics
+    stats_CE = rs.zonal_stats(CE_fishnet, DEM, stats=['mean'])
+    CE_fishnet.loc[:, "altitude"] = [s['mean'] for s in stats_CE]
+    stats_CP = rs.zonal_stats(CP_fishnet, DEM, stats=['mean'])
+    CP_fishnet.loc[:, "altitude"] = [s['mean'] for s in stats_CP]
+    return CP_fishnet, CE_fishnet
+
+# def main_path(flow_dir: np.ndarray,
+#               flow_acc: np.ndarray,
+#               flow_th: float) -> np.ndarray:
+#     # Create a mask to extract only the cells with flow accumulation greater than a certain threshold
+#     flow_accumulation_mask = (flow_acc > flow_th)
+
+#     # Find the outlet cell of the catchment (i.e., the cell with the minimum flow accumulation)
+#     outlet_row, outlet_col = np.unravel_index(
+#         np.argmin(flow_acc), flow_acc.shape)
+
+#     # Create an empty list to store the cells in the main stream
+#     main_stream_cells = []
+
+#     # Trace the main stream from the outlet cell to the start of the main stream
+#     next_row, next_col = outlet_row, outlet_col
+#     while True:
+#         main_stream_cells.append((next_row, next_col))
+#         direction = flow_dir[next_row, next_col]
+#         if direction == 0:  # Check if the current cell is a sink cell and exit the loop if it is
+#             break
+#         # Calculate the row and column indices of the next cell in the main stream
+#         next_row += [-1, -1, 0, 1, 1, 1, 0, -1][direction - 1]
+#         next_col += [0, 1, 1, 1, 0, -1, -1, -1][direction - 1]
+#         # Check if the next row or column index is out of bounds and exit the loop if it is
+#         if next_row < 0 or next_row >= flow_dir.shape[0] or next_col < 0 or next_col >= flow_dir.shape[1]:
+#             break
+#         # Check if the current cell has more than one upstream cell and exit the loop if it does
+#         upstream_count = 0
+#         for i, j in [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]:
+#             row = next_row + i
+#             col = next_col + j
+#             if row >= 0 and row < flow_dir.shape[0] and col >= 0 and col < flow_dir.shape[1]:
+#                 if flow_dir[row, col] == (8 - direction):
+#                     upstream_count += 1
+#                     if upstream_count > 1:
+#                         break
+#         if upstream_count > 1:
+#             break
+
+#     # Create a new raster to represent the main stream cells
+#     main_stream_raster = np.zeros_like(flow_dir)
+#     for cell in main_stream_cells:
+#         main_stream_raster[cell[0], cell[1]] = 1
 
 
-def main_path(flow_dir: np.ndarray,
-              flow_acc: np.ndarray,
-              flow_th: float) -> np.ndarray:
-    # Create a mask to extract only the cells with flow accumulation greater than a certain threshold
-    flow_accumulation_mask = (flow_acc > flow_th)
-
-    # Find the outlet cell of the catchment (i.e., the cell with the minimum flow accumulation)
-    outlet_row, outlet_col = np.unravel_index(
-        np.argmin(flow_acc), flow_acc.shape)
-
-    # Create an empty list to store the cells in the main stream
-    main_stream_cells = []
-
-    # Trace the main stream from the outlet cell to the start of the main stream
-    next_row, next_col = outlet_row, outlet_col
-    while True:
-        main_stream_cells.append((next_row, next_col))
-        direction = flow_dir[next_row, next_col]
-        if direction == 0:  # Check if the current cell is a sink cell and exit the loop if it is
-            break
-        # Calculate the row and column indices of the next cell in the main stream
-        next_row += [-1, -1, 0, 1, 1, 1, 0, -1][direction - 1]
-        next_col += [0, 1, 1, 1, 0, -1, -1, -1][direction - 1]
-        # Check if the next row or column index is out of bounds and exit the loop if it is
-        if next_row < 0 or next_row >= flow_dir.shape[0] or next_col < 0 or next_col >= flow_dir.shape[1]:
-            break
-        # Check if the current cell has more than one upstream cell and exit the loop if it does
-        upstream_count = 0
-        for i, j in [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]:
-            row = next_row + i
-            col = next_col + j
-            if row >= 0 and row < flow_dir.shape[0] and col >= 0 and col < flow_dir.shape[1]:
-                if flow_dir[row, col] == (8 - direction):
-                    upstream_count += 1
-                    if upstream_count > 1:
-                        break
-        if upstream_count > 1:
-            break
-
-    # Create a new raster to represent the main stream cells
-    main_stream_raster = np.zeros_like(flow_dir)
-    for cell in main_stream_cells:
-        main_stream_raster[cell[0], cell[1]] = 1
-
-
-def routing_table(CE_fishnet: gpd.GeoDataFrame,
-                  CP_fishnet: gpd.GeoDataFrame,
+def routing_table(CP_fishnet: gpd.GeoDataFrame,
                   FAC: str,
-                  DIR: str,
-                  CP_array: np.ndarray,
-                  flow_th: float) -> pd.DataFrame:
+                  CP_array: np.ndarray) -> pd.DataFrame:
 
-    # CP_fishnet.index = range(len(CP_fishnet))
-    # CP_fishnet["CPid"] = range(len(CP_fishnet))
-    
-    
+    # Create dataframe to store the routing data
     routing = pd.DataFrame(columns=["CPid", "inCPid", "outlet_row",
                                     "outlet_col", "inlet_row", "inlet_col"],
                            index=CP_fishnet.index)
@@ -629,7 +646,7 @@ def get_downstream_CP(rtable: pd.DataFrame) -> pd.DataFrame:
     lists_len = [len(i)
                  for i in rtable["upstreamCPs"].values if isinstance(i, list)]
     # Create a zero array to store the values
-    list_upstream_array = np.zeros([len(rtable), max(lists_len)])
+    list_upstream_array = np.zeros([len(rtable), max(lists_len)]).astype("uint16")
     # Fill up the array using the lists in the main dataframe
     for i in range(len(rtable)):
         if isinstance(rtable.loc[i, "upstreamCPs"], list):

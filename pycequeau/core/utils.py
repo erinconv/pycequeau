@@ -49,6 +49,40 @@ def rasterize_shp(grid_shp: str,
     data_array = band.ReadAsArray()
     return data_array
 
+def rasterize_shp_as_byte(grid_shp: str,
+                   ref_name: str, field: str, 
+                   name: str) -> None:
+    # Get raster georeference info
+    raster = gdal.Open(ref_name, gdal.GA_ReadOnly)
+    transform = raster.GetGeoTransform()
+    xOrigin = transform[0]
+    yOrigin = transform[3]
+    pixelWidth = transform[1]
+    pixelHeight = -transform[5]
+    x_res = raster.RasterXSize
+    y_res = raster.RasterYSize
+    # Get shp info
+    shp = ogr.Open(grid_shp,gdal.GA_ReadOnly)
+    lyr = shp.GetLayer()
+    proj = lyr.GetSpatialRef()
+    xmin, xmax, ymin, ymax = lyr.GetExtent()
+    # Get the resolution to the new raster
+    # Create tiff format file
+    # grid_raster = gdal.GetDriverByName('GTiff').Create(
+    #     grid_shp.replace(".shp",".tif"), 
+    #     x_res, y_res, 1, gdal.GDT_Int32)
+    # Create the raster in the memory
+    grid_raster = gdal.GetDriverByName('GTiff').Create(
+        name, x_res, y_res, 1, gdal.GDT_Byte)
+    grid_raster.SetGeoTransform(raster.GetGeoTransform())
+    grid_raster.SetProjection(raster.GetProjection())
+    band = grid_raster.GetRasterBand(1)
+    band.SetNoDataValue(0)
+    gdal.RasterizeLayer(grid_raster, [1], lyr, options=[
+                        "ATTRIBUTE="+field])
+    band = grid_raster.GetRasterBand(1)
+    data_array = band.ReadAsArray()
+    return data_array
 
 def get_i_j_CEQUEAU_grid(CEgrid: gdal.Dataset):
     pass
@@ -118,7 +152,8 @@ def regrid_CE(raster: gdal.Dataset,
 
 
 def rasterize_feature(gdf: gpd.GeoDataFrame,
-                      raster_name: str) -> np.ndarray:
+                      raster_name: str,
+                      att: str) -> np.ndarray:
     # Get raster georeference info
     raster = gdal.Open(raster_name,gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
@@ -129,13 +164,13 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     # yOrigin1 = yOrigin + pixelHeight[5] * raster.RasterYSize
     # Get no data value
     no_data = raster.GetRasterBand(1).GetNoDataValue()
-    xmin, ymin, xmax, ymax = gdf.geometry.bounds
+    # xmin, ymin, xmax, ymax = gdf.bounds
 
     # Specify offset and rows and columns to read
-    xoff = ceil((xmin - xOrigin)/pixelWidth)
-    yoff = int((yOrigin - ymax)/pixelHeight)
-    xcount = int((xmax - xmin)/pixelWidth)
-    ycount = int((ymax - ymin)/pixelHeight)
+    xoff = ceil((gdf['minx'] - xOrigin)/pixelWidth)
+    yoff = int((yOrigin - gdf['maxy'])/pixelHeight)
+    xcount = int((gdf['maxx'] - gdf['minx'])/pixelWidth)
+    ycount = int((gdf['maxy'] - gdf['miny'])/pixelHeight)
 
     # Get the projection
     proj = osr.SpatialReference(wkt=raster.GetProjection())
@@ -155,7 +190,7 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
         sys.exit("Geometry type not valid. Fix it")
 
     # Add an ID field
-    idField = ogr.FieldDefn("id", ogr.OFTInteger)
+    idField = ogr.FieldDefn(att, ogr.OFTInteger)
     geom = ogr.CreateGeometryFromWkb(gdf['geometry'].wkb)
     temp_layer.CreateField(idField)
 
@@ -163,29 +198,33 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     featureDefn = temp_layer.GetLayerDefn()
     feat = ogr.Feature(featureDefn)
     feat.SetGeometry(geom)
-    feat.SetField("id", 1)
+    feat.SetField(att, 1)
     temp_layer.CreateFeature(feat)
 
     target_ds = gdal.GetDriverByName('MEM').Create(
         "", xcount, ycount, gdal.GDT_Byte)
-    target_ds.SetGeoTransform((xmin, pixelWidth, 0,
-                               ymin, 0, pixelHeight,))
+    target_ds.SetGeoTransform((gdf['minx'], pixelWidth, 0,
+                               gdf['miny'], 0, pixelHeight,))
 
     # Rasterize the in-memory vector dataset onto the mask array
     gdal.RasterizeLayer(target_ds, [1], 
-                        temp_layer, options=["ATTRIBUTE=id"])
+                        temp_layer, options=["ATTRIBUTE="+att])
 
     bandmask = target_ds.GetRasterBand(1)
     datamask = bandmask.ReadAsArray()
     
     banddataraster = raster.GetRasterBand(1)
-
+    no_data = raster.GetRasterBand(1).GetNoDataValue()
+    # Mask array based on the nondata value
     dataraster = banddataraster.ReadAsArray(
         xoff, yoff, xcount, ycount)
-    print(datamask)
-    print(dataraster)
-    print(datamask.shape)
-    pass
+    # masked_dataraster = np.ma.masked_where(dataraster==no_data,dataraster)
+    # Change 
+    # np.set_printoptions(threshold=sys.maxsize)
+    # print(datamask)
+    # print(dataraster)
+    # print(datamask.shape)
+    return datamask*dataraster
 
 
 def rasterize_shp2(gdf: gpd.GeoDataFrame,
