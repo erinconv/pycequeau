@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from osgeo import gdal, ogr
 import os
+import json
 from math import ceil
 import pandas as pd
 import numpy as np
@@ -284,8 +285,8 @@ class Basin:
         # Export the tables as csv into the geographical information
         # self.rtable.to_csv(os.path.join(self._project_path, "geographic", "rtable.csv"),index=False)
         
-        # np.savetxt(os.path.join(self._project_path, "geographic", "outlet_routes.csv"),
-        #            outlet_routes,delimiter=",",fmt="%1i")
+        np.savetxt("outlet_routes.csv",
+                   self.outlet_routes,delimiter=",",fmt="%1i")
         # outlet_routes(,index=False)
         
         # Add rtable to the 
@@ -509,7 +510,43 @@ class Basin:
         self.carreauxPartiels["i"] = np.array(self.carreauxPartiels["i"],dtype=np.int8)
         self.carreauxPartiels["j"] = np.array(self.carreauxPartiels["j"],dtype=np.int8)
         self.carreauxPartiels["code"] = np.array(self.carreauxPartiels["code"],dtype=np.int8)
+        self.carreauxPartiels["penteRiviere"] = np.array(self.carreauxPartiels["penteRiviere"],dtype=np.float32)
         self.carreauxPartiels.to_csv("carreauxPartiels.csv")
+
+    def create_bassinVersant_structure(self):
+        # This structure will be stored as json format. This json format
+        # will be easily translatet into .mat file for being read by Matlab
+        # and also, will serve as one of the main input files in the OpenCEQUEAU
+        # system.
+        # *Temporary lines to read the csv files.
+        # self.carreauxEntiers = pd.read_csv("carreauxEntiers.csv",index_col=0)
+        # self.carreauxPartiels = pd.read_csv("carreauxPartiels.csv",index_col=0)
+        # Get the column names from the carreux partiels and entiers structures
+        columns_CE = self.carreauxEntiers.columns.tolist()
+        columns_CP = self.carreauxPartiels.columns.tolist()
+        # Create the dictionary structure
+        self.bassinVersant = {
+            "nbCpCheminLong": [],
+            "superficieCE": [],
+            "barrage": {},
+            "nomBassinVersant": '',
+            "carreauxEntiers": {},
+            "carreauxPartiels": {}
+        }
+        keysList = list(self.bassinVersant.keys())
+        # Send the carreuxEntiers values
+        for CE_name in columns_CE:
+            self.bassinVersant["carreauxEntiers"].update({CE_name: self.carreauxEntiers[CE_name].values.tolist()})
+        # Send the carreuxPartiels values
+        for CP_name in columns_CP:
+            self.bassinVersant["carreauxPartiels"].update({CP_name: self.carreauxPartiels[CP_name].values.tolist()})
+        self.bassinVersant["superficieCE"] = self._dx*self._dy*1.0e-6
+        self.bassinVersant["nomBassinVersant"] = self.name
+        self.bassinVersant["nbCpCheminLong"] = self.outlet_routes.shape[1] 
+        # Save the files in the results folder
+        with open(os.path.join(self._project_path, "results","bassinVersant.json"), "w") as outfile:
+            json.dump(self.bassinVersant, outfile,indent = 4)
+        pass
 
     def create_CEgrid(self):
         # Default no data value of the CAT raster
