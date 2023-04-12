@@ -3,7 +3,7 @@ from __future__ import annotations
 from osgeo import gdal, ogr
 import os
 import json
-from math import ceil
+from math import ceil,floor
 import pandas as pd
 import numpy as np
 from pycequeau.physiographic import carreauxEntiers as CEs
@@ -78,7 +78,9 @@ class Basin:
                           basin: str,
                           dx: float,
                           dy: float,
-                          fishnet: str) -> None:
+                          fishnet: str,
+                          xoffset=0.0,
+                          yoffset=0.0) -> None:
         """_summary_
 
         Args:
@@ -98,10 +100,10 @@ class Basin:
         cols = ceil((xmax-xmin)/dx)
 
         # start grid cell envelope
-        ringXleftOrigin = xmin
-        ringXrightOrigin = xmin + dx
-        ringYtopOrigin = ymax
-        ringYbottomOrigin = ymax-dy
+        ringXleftOrigin = xmin - xoffset
+        ringXrightOrigin = xmin + dx - xoffset
+        ringYtopOrigin = ymax - yoffset
+        ringYbottomOrigin = ymax - dy - yoffset
 
         # create output file
         outDriver = ogr.GetDriverByName('ESRI Shapefile')
@@ -217,8 +219,10 @@ class Basin:
         self.join_shps(self._CEfishnet,
                     self._SubBasins,
                     self._CPfishnet)
+        
+        
 
-    def create_CEfishnet(self):
+    def create_CEfishnet(self, xoffset = 0.0, yoffset = 0.0):
         # Check if the file already exist
         if os.path.exists(self._CEfishnet):
             os.remove(self._CEfishnet)
@@ -226,7 +230,9 @@ class Basin:
         self._create_CEfishnet(self._Basin,
                             self._dx,
                             self._dy,
-                            self._CEfishnet)
+                            self._CEfishnet,
+                            xoffset,
+                            yoffset)
 
     def polish_CPfishnet(self, area_th=0.05):
         """_summary_
@@ -255,6 +261,7 @@ class Basin:
         # in order to compare them both to do the routing process
         # The CP grid is already processed and well polished
         CP_array = u.rasterize_shp(self._CPfishnet,self._FAC,"CPid")
+        CE_array = u.rasterize_shp(self._CEfishnet,self._FAC,"CEid")
 
         # Open fishnets as geodataframes
         CEfishnet = gpd.read_file(self._CEfishnet)
@@ -263,8 +270,10 @@ class Basin:
         # up to the last CP. Here the upstream CP are also identify for each
         # individual CP
         self.rtable, CPfishnet = CPfs.routing_table(CPfishnet,
-                                     self._FAC,
-                                     CP_array)
+                                                    CEfishnet,
+                                                    self._FAC,
+                                                    CP_array,
+                                                    CE_array)
         # Obtain the downstream CP based on the previous process
         self.rtable = CPfs.get_downstream_CP(self.rtable)
         # self.rtable["newCPid"] = pd.to_numeric(self.rtable["newCPid"])

@@ -14,6 +14,47 @@ from math import ceil
 import itertools
 import matplotlib.pyplot as plt
 
+def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
+    """
+    taken from: 
+    https://ml-gis-service.com/index.php/2021/09/24/toolbox-drop-duplicated-geometries-from-geodataframe/
+    
+    Function drops duplicated geometries from a geoseries. It works as follow:
+    
+        1. Take record from the dataset. Check it's index against list of indexes-to-skip. If it's not there then move to the next step.
+        2. Store record's index in the list of processed indexes (to re-create geoseries without duplicates) and in the list of indexes-to-skip.
+        3. Compare this record to all other records. If any of them is a duplicate then store its index in the indexes-to-skip.
+        4. If all records are checked then re-create dataframe without duplicates based on the list of processed indexes.
+        
+    INPUT:
+    
+    :param geoseries: (gpd.GeoSeries)
+    
+    OUTPUT:
+    
+    :returns: (gpd.GeoDataFrame)
+    """
+    
+    indexes_to_skip = []
+    processed_indexes = []
+    
+    for index, geom in geoseries.items():
+        if index not in indexes_to_skip:
+            processed_indexes.append(index)
+            indexes_to_skip.append(index)
+            for other_index, other_geom in geoseries.items():
+                if other_index in indexes_to_skip:
+                    pass
+                else:
+                    if geom.equals(other_geom):
+                        indexes_to_skip.append(other_index)
+                    else:
+                        pass
+    output_gs = geoseries[processed_indexes].copy()
+    return indexes_to_skip,processed_indexes
+
+
+
 def rasterize_shp(grid_shp: str,
                    ref_name: str,
                    field: str)-> np.ndarray:
@@ -33,12 +74,12 @@ def rasterize_shp(grid_shp: str,
     xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
-    # grid_raster = gdal.GetDriverByName('GTiff').Create(
-    #     grid_shp.replace(".shp",".tif"), 
-    #     x_res, y_res, 1, gdal.GDT_Int32)
+    grid_raster = gdal.GetDriverByName('GTiff').Create(
+        grid_shp.replace(".shp",".tif"), 
+        x_res, y_res, 1, gdal.GDT_Int32)
     # Create the raster in the memory
-    grid_raster = gdal.GetDriverByName('MEM').Create(
-        '', x_res, y_res, 1, gdal.GDT_Int32)
+    # grid_raster = gdal.GetDriverByName('MEM').Create(
+    #     '', x_res, y_res, 1, gdal.GDT_Int32)
     grid_raster.SetGeoTransform(raster.GetGeoTransform())
     grid_raster.SetProjection(raster.GetProjection())
     band = grid_raster.GetRasterBand(1)
