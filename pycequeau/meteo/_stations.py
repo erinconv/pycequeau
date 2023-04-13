@@ -40,7 +40,7 @@ def create_grid_var(ds: xr.Dataset,
             "pasTemp": datenum
         }
     )
-    # this is for getting the CP number
+    # this is for getting the CE number
     count = 0
     for i,j in zip(idx,idy):
         # Place the value in the new matrix
@@ -73,10 +73,10 @@ def interpolation_netCDF(ds: xr.Dataset,
         table["lon"] = table["lon"] + 360
 
     # Create objective
-    i_res = CEregrid.ReadAsArray().shape[0]
-    j_res = CEregrid.ReadAsArray().shape[1]
-    i = np.linspace(0, i_res, i_res, dtype=np.int16)+10
-    j = np.linspace(0, j_res, j_res, dtype=np.int16)+10
+    i_res = CEregrid.ReadAsArray().shape[1]
+    j_res = CEregrid.ReadAsArray().shape[0]
+    i = np.linspace(0, i_res, i_res, dtype=np.int8)+10
+    j = np.linspace(0, j_res, j_res, dtype=np.int8)+10
     # ig, jg = np.meshgrid(i, j, indexing="ij")
     # Create the ref objects
     # Find the nearest maximun and minimum values
@@ -88,12 +88,12 @@ def interpolation_netCDF(ds: xr.Dataset,
     ds = ds.isel(lat=slice(lat_min_idx, lat_max_idx),
                  lon=slice(lon_min_idx, lon_max_idx))
     # Create reference regridder
-    y = np.linspace(min(j), max(j), len(ds["lon"].values), dtype=np.int16)
-    x = np.linspace(min(i), max(i), len(ds["lat"].values), dtype=np.int16)
-    ds = ds.assign_coords(lat=x)
-    ds = ds.assign_coords(lon=y)
+    x = np.linspace(min(j), max(j), len(ds["lon"].values), dtype=np.int8)
+    y = np.linspace(min(i), max(i), len(ds["lat"].values), dtype=np.int8)
+    ds = ds.assign_coords(lat=y)
+    ds = ds.assign_coords(lon=x)
     # Create mask
-    dsi = ds.interp(time=ds["time"], lat=i, lon=j, method=method)
+    dsi = ds.interp(time=ds["time"], lat=j, lon=i, method=method)
     # mask interpolated dataset
     # mask = np.ma.masked_where(array==0,dsi.values)
     dsi = dsi.where(CEregrid.ReadAsArray() > 0)
@@ -120,18 +120,26 @@ def get_netCDF_grids(ds: xr.DataArray,
     Returns:
         np.ndarray: _description_
     """
-    xmin, xmax, ymin, ymax, _, _ = u.GetExtent(CEgrid)
+    xtup, ytup, ptup = u.GetExtent(CEgrid)
     epsg_dem = projections.get_proj_code(CEgrid)
-    y, x = projections.utm_to_latlon((ymin, ymax),
-                                     (xmin, xmax),
+    y, x = projections.utm_to_latlon((np.amin(ytup), np.amax(ytup)),
+                                     (np.amin(xtup), np.amax(xtup)),
                                      epsg_dem)
     # TODO: Add another object to deal with the dataset dimension names. For now, the default names are: [time,lat,lon]
     dy = abs(ds["lat"][0].values - ds["lat"][1].values)
     dx = abs(ds["lon"][0].values - ds["lon"][1].values)
     lon_mask = np.arange(x[0], x[1], dx)
     lat_mask = np.arange(y[0], y[1], dy)
+    # Get the extent of the vector layer
+    shp_layer = watershed.GetLayer()
+    xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+    # Convert the shp extent to latlon also
+    y, x = projections.utm_to_latlon((ymin, ymax),
+                                     (xmin, xmax),
+                                     epsg_dem)
+    watershed_extent = (y,x)
     # Check if retrieved points fall in watershed extent
-    xypair = u.falls_in_extent(watershed,
+    xypair = u.falls_in_extent(watershed_extent,
                                lon_mask,
                                lat_mask)
     return xypair
@@ -155,8 +163,8 @@ def create_station_table(CEregrid: gdal.Dataset,
     Returns:
         pd.DataFrame: _description_
     """
-    i_res = CEregrid.ReadAsArray().shape[0]
-    j_res = CEregrid.ReadAsArray().shape[1]
+    i_res = CEregrid.ReadAsArray().shape[1]
+    j_res = CEregrid.ReadAsArray().shape[0]
     i = np.linspace(0, i_res, i_res, dtype=int)
     j = np.linspace(0, j_res, j_res, dtype=int)
     # Get raster index
@@ -165,12 +173,12 @@ def create_station_table(CEregrid: gdal.Dataset,
                                 lon_utm)
     # Create dataframe and append to the MeteoObject
     stations = pd.DataFrame(data={
-        "id": ["NC-grid-"+str(num) for num in range(len(j[col]))],
-        "i": i[row]+10,
-        "j": j[col]+10,
+        "id": ["NC-grid-"+str(num) for num in range(len(i[col]))],
+        "i": i[col]+10,
+        "j": j[row]+10,
         "lat": xy_pair[:, 1],
         "lon": xy_pair[:, 0],
-        "CEgrid": CEregrid.ReadAsArray()[row, col],
+        "CEid": CEregrid.ReadAsArray()[row, col],
         "altitude": u.get_altitude_point(DEM, lat_utm, lon_utm)
     }
     )

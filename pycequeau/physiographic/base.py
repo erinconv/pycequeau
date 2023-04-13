@@ -19,7 +19,8 @@ class Basin:
     def __init__(self,
                  project_folder: str,
                  basin_name: str,
-                 file_list: list) -> None:
+                 file_list: list,
+                 *args) -> None:
         # Create project structure
         self._project_path = project_folder
         self.name = basin_name
@@ -29,6 +30,18 @@ class Basin:
             self._project_path, "geographic", "CE_fishnet.shp")
         self._CPfishnet = os.path.join(
             self._project_path, "geographic", "CP_fishnet.shp")
+        
+        # Check if the bassin versant object is an input file 
+        if len(args) == 1:
+            # Check if the provided file is an an actual json file
+            try:
+                # Open the json file file 
+                f = open(args[0],"r")
+                self.bassinVersant = json.loads(f.read())
+            except ValueError:
+                raise ValueError("Provided file is not a json file")
+        # else:
+        #     sys.exit("The number of args must be 1")
 
     def _project_structure(self,
                            project_folder: str,
@@ -416,6 +429,11 @@ class Basin:
         pctForet[np.isnan(pctForet)] = 0
         # Drop the non data CEs
         self.CEfishnet = self.CEfishnet[self.CEfishnet["newCEid"] != 0]
+        # Append the i,j to the CE_fishnet
+        self.CEfishnet =  self.CEfishnet.reindex(columns=self.CEfishnet.columns.tolist() + ['i', 'j'])
+        # Place the values into the dataset
+        self.CEfishnet["i"] = coordinates["i"].values
+        self.CEfishnet["j"] = coordinates["j"].values
         # Create the carreauxEntier dataset
         self.carreauxEntiers = pd.DataFrame(columns=["CEid","i","j","pctLacRiviere",
                                                      "pctForet","pctMarais","pctSolNu",
@@ -433,6 +451,7 @@ class Basin:
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype("uint16")
         self.carreauxEntiers["i"] = self.carreauxEntiers["i"].astype("uint8")
         self.carreauxEntiers["j"] = self.carreauxEntiers["j"].astype("uint8")
+        self.CEfishnet.to_file(self._CEfishnet)
         # self.carreauxEntiers.to_csv("carreauxEntiers.csv")
 
     def carreauxPartiels_struct(self):
@@ -480,7 +499,10 @@ class Basin:
         # self.CPfishnet = self.CPfishnet[self.CPfishnet["newCPid"] != 0]
         # Get river geometry
         geometry = CPs.get_river_geometry(self.CPfishnet,self.rtable)
-        df1 = pd.DataFrame(self.CPfishnet.drop(columns='geometry'))
+        self.CPfishnet =  self.CPfishnet.reindex(columns=self.CPfishnet.columns.tolist() + ['i', 'j'])
+        # Place the values into the dataset
+        self.CPfishnet["i"] = coordinates["i"].values
+        self.CPfishnet["j"] = coordinates["j"].values
         # Create the carreauxPartiel dataset
         self.carreauxPartiels = pd.DataFrame(columns=["CPid","i","j","code",
                                                      "pctSurface","idCPAval","idCPsAmont",
@@ -520,7 +542,8 @@ class Basin:
         self.carreauxPartiels["j"] = np.array(self.carreauxPartiels["j"],dtype=np.int8)
         self.carreauxPartiels["code"] = np.array(self.carreauxPartiels["code"],dtype=np.int8)
         self.carreauxPartiels["penteRiviere"] = np.array(self.carreauxPartiels["penteRiviere"],dtype=np.float32)
-        self.carreauxPartiels.to_csv("carreauxPartiels.csv")
+        # self.carreauxPartiels.to_csv("carreauxPartiels.csv")
+        self.CPfishnet.to_file(self._CPfishnet)
 
     def create_bassinVersant_structure(self):
         # This structure will be stored as json format. This json format
@@ -542,7 +565,6 @@ class Basin:
             "carreauxEntiers": {},
             "carreauxPartiels": {}
         }
-        keysList = list(self.bassinVersant.keys())
         # Send the carreuxEntiers values
         for CE_name in columns_CE:
             self.bassinVersant["carreauxEntiers"].update({CE_name: self.carreauxEntiers[CE_name].values.tolist()})
@@ -559,7 +581,7 @@ class Basin:
 
     def create_CEgrid(self):
         # Default no data value of the CAT raster
-        ref_raster = gdal.Open(self._DEM,gdal.GA_ReadOnly)
+        # ref_raster = gdal.Open(self._DEM,gdal.GA_ReadOnly)
         CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
         lyr = CE_shp.GetLayer()
         # new_field = ogr.FieldDefn('CEid', ogr.OFTInteger)
@@ -582,13 +604,14 @@ class Basin:
         # Get dimenssions for the CEgrid rasters
 
         # CEgrid path
-        # path = os.path.join(self._project_path, "geographic", "CEgrid.tif")
-        self._CEgrid = gdal.GetDriverByName('MEM').Create(
-            '', abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
+        path = os.path.join(self._project_path, "geographic", "CEgrid.tif")
+        self._CEgrid = gdal.GetDriverByName('GTiff').Create(
+            path, abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
         self._CEgrid.SetProjection(proj.ExportToWkt())
         self._CEgrid.SetGeoTransform((xmin, self._dx, 0, ymin, 0, self._dy))
         band = self._CEgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
+        band.FlushCache()
         gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=["ATTRIBUTE=newCEid"])
         data_array = band.ReadAsArray()
         return data_array

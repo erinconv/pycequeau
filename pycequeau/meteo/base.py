@@ -10,8 +10,9 @@ from pycequeau.core import utils as u
 # Base class for the meteo module
 
 
-class MeteoStation:
-    def __init__(self) -> None:
+class Meteo:
+    def __init__(self, bassinVersant: Basin) -> None:
+        self.basin_struct = bassinVersant
         pass
 
     # def __init__(self, *args, **kwargs) -> None:
@@ -21,9 +22,9 @@ class MeteoStation:
     #         pass
 
     @classmethod
-    def cequeau_grid(cls, ds: xr.DataArray) -> xr.Dataset:
+    def cequeau_grid(cls, ds: xr.DataArray, basin_struct: Basin) -> xr.Dataset:
         
-        grid = cls._cequeau_grid(ds)
+        grid = cls._cequeau_grid(ds, basin_struct)
         
         return grid
 

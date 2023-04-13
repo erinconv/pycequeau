@@ -16,4 +16,4 @@ cd pycequeau
 conda install --file requirements.txt
 ```
 
-You can now use the example file called [tutorial_CORDEX.ipynb](https://github.com/erinconv/pycequeau/blob/main/tutorial_CORDEX.ipynb "tutorial_CORDEX.ipynb") to test the code.
+<!-- You can now use the example file called [tutorial_CORDEX.ipynb](https://github.com/erinconv/pycequeau/blob/main/tutorial_CORDEX.ipynb "tutorial_CORDEX.ipynb") to test the code. -->

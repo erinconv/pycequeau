@@ -1,6 +1,7 @@
 test_scripts/
 _legacy_matlab/
 pycequeau/physiographic/physio.py
+pycequeau/test
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

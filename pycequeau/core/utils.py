@@ -74,12 +74,12 @@ def rasterize_shp(grid_shp: str,
     xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
-    grid_raster = gdal.GetDriverByName('GTiff').Create(
-        grid_shp.replace(".shp",".tif"), 
-        x_res, y_res, 1, gdal.GDT_Int32)
+    # grid_raster = gdal.GetDriverByName('GTiff').Create(
+    #     grid_shp.replace(".shp",".tif"), 
+    #     x_res, y_res, 1, gdal.GDT_Int32)
     # Create the raster in the memory
-    # grid_raster = gdal.GetDriverByName('MEM').Create(
-    #     '', x_res, y_res, 1, gdal.GDT_Int32)
+    grid_raster = gdal.GetDriverByName('MEM').Create(
+        '', x_res, y_res, 1, gdal.GDT_Int32)
     grid_raster.SetGeoTransform(raster.GetGeoTransform())
     grid_raster.SetProjection(raster.GetProjection())
     band = grid_raster.GetRasterBand(1)
@@ -132,12 +132,15 @@ def get_i_j_CEQUEAU_grid(CEgrid: gdal.Dataset):
 def get_altitude_point(DEM: gdal.Dataset,
                        lat_utm: np.array,
                        lon_utm: np.array):
-    xmin, xmax, ymin, ymax, xpixel, ypixel = GetExtent(DEM)
+    
+    xtup, ytup, ptup = GetExtent(DEM)
+    # (xmin, xmax), (ymin, ymax), (xpixel, ypixel)
+    # xmin, xmax, ymin, ymax, xpixel, ypixel = GetExtent(DEM)
     DEM_array = DEM.ReadAsArray()
     altitudes = []
     for x, y in zip(lat_utm, lon_utm):
-        col = int((x-xmin)/xpixel)
-        row = int((ymax-y)/-ypixel)
+        col = int((x-np.amin(xtup))/ptup[0])
+        row = int((np.amax(ytup)-y)/(-ptup[1]))
         if col < 0 or row < 0:
             altitudes.append(-9999)
         elif row >= DEM_array.shape[0] or col > DEM_array.shape[1]:
@@ -154,7 +157,7 @@ def GetExtent(raster: gdal.Dataset):
     xmax = xmin + width * xpixel
     ymin = ymax + height * ypixel
 
-    return (xmin, xmax, ymin, ymax, xpixel, ypixel)
+    return (xmin, xmax), (ymin, ymax), (xpixel, ypixel)
     # return (xmin, ymax), (xmax, ymax), (xmax, ymin), (xmin, ymin)
 
 
@@ -494,18 +497,16 @@ def loop_zonal_stats(raster: gdal.Dataset,
     return statDict
 
 
-def falls_in_extent(fishnet: ogr.DataSource,
+def falls_in_extent(extent: tuple,
                     x: list,
                     y: list):
-    # Fishnet must alway be in lat lon.
-    # TODO: Generalize method to deal with coord conversion
-    shp_layer = fishnet.GetLayer()
-    xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+    # Extract the extent from the given values
+    y_ext,x_ext = extent
     xy_pairs = np.c_[list(itertools.product(x, y))]
-    idx, = np.where((xy_pairs[:, 0] <= xmin) |
-                    (xy_pairs[:, 0] >= xmax) |
-                    (xy_pairs[:, 1] <= ymin) |
-                    (xy_pairs[:, 1] >= ymax))
+    idx, = np.where((xy_pairs[:, 0] <= np.amin(x_ext)) |
+                    (xy_pairs[:, 0] >= np.amax(x_ext)) |
+                    (xy_pairs[:, 1] <= np.amin(y_ext)) |
+                    (xy_pairs[:, 1] >= np.amax(y_ext)))
     xy_pairs[idx] = np.nan
     return xy_pairs[~np.isnan(xy_pairs).any(axis=1), :]
 
