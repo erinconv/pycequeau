@@ -1,7 +1,6 @@
 % add paths to the functions and dependencies
 addpath("functions\")
 addpath("jsonlab-2.0\")
-% Load the basin file
 project_path = '\home\erinconv\01-PhD\River';
 % Import json parameters data
 params_json = fullfile(project_path, 'results', 'parameters.json');
