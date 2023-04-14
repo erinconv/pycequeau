@@ -9,13 +9,13 @@ from pycequeau.core import utils as u
 
 
 def create_grid_var(ds: xr.Dataset,
-                    idx: np.ndarray,
-                    idy: np.ndarray,
+                    rows: np.ndarray,
+                    cols: np.ndarray,
                     CEs: np.ndarray,
                     var_name: str,
                     datenum: list) -> xr.Dataset:
     """_summary_
-
+    j, i,
     Args:
         ds (xr.Dataset): _description_
         idx (np.ndarray): _description_
@@ -42,9 +42,9 @@ def create_grid_var(ds: xr.Dataset,
     )
     # this is for getting the CE number
     count = 0
-    for i,j in zip(idx,idy):
+    for i,j in zip(cols,rows):
         # Place the value in the new matrix
-        dr[var_name][:,count] = ds[var_name][:,i,j].values.astype(np.float32)
+        dr[var_name][:,count] = ds[var_name][:,j,i].values.astype(np.float32)
         count += 1
     # print(ds[var_name][:,i,j].values.astype(np.float32))
     # print(dr[var_name][:,count].values)
@@ -78,6 +78,10 @@ def interpolation_netCDF(ds: xr.Dataset,
     i = np.linspace(0, i_res, i_res, dtype=np.int8)+10
     j = np.linspace(0, j_res, j_res, dtype=np.int8)+10
     # ig, jg = np.meshgrid(i, j, indexing="ij")
+    # Check whether the longitudes need to be corrected
+    if ds["lon"].max() > 0:
+        ds["lon"] = ds["lon"].values - 360
+        table["lon"] = table["lon"].values - 360
     # Create the ref objects
     # Find the nearest maximun and minimum values
     lon_max_idx = u.find_nearest(ds["lon"].values, table["lon"].max())
@@ -85,18 +89,18 @@ def interpolation_netCDF(ds: xr.Dataset,
     lat_max_idx = u.find_nearest(ds["lat"].values, table["lat"].max())
     lat_min_idx = u.find_nearest(ds["lat"].values, table["lat"].min())
     # Slice the dataset
-    ds = ds.isel(lat=slice(lat_min_idx, lat_max_idx),
-                 lon=slice(lon_min_idx, lon_max_idx))
+    ds = ds.isel(lat=slice(lat_min_idx-1, lat_max_idx),
+                 lon=slice(lon_min_idx, lon_max_idx+1))
     # Create reference regridder
-    x = np.linspace(min(j), max(j), len(ds["lon"].values), dtype=np.int8)
-    y = np.linspace(min(i), max(i), len(ds["lat"].values), dtype=np.int8)
+    x = np.linspace(min(i), max(i), len(ds["lon"].values), dtype=np.int8)
+    y = np.linspace(min(j), max(j), len(ds["lat"].values), dtype=np.int8)
     ds = ds.assign_coords(lat=y)
     ds = ds.assign_coords(lon=x)
     # Create mask
     dsi = ds.interp(time=ds["time"], lat=j, lon=i, method=method)
     # mask interpolated dataset
-    # mask = np.ma.masked_where(array==0,dsi.values)
     dsi = dsi.where(CEregrid.ReadAsArray() > 0)
+    pp = np.array(dsi["pTot"])[0, :,:]
     dsi = dsi.rename(lat="j", lon="i")
     ds = ds.rename(lat="j", lon="i")
     dsi = _appendCEgrid(dsi, CEregrid)

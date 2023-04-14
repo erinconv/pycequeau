@@ -15,7 +15,7 @@ class Parameters:
         self.surface = 0
         self.basin_structure = bassinVersant
         pass
-    
+
     def create_parameter_structure(self):
         self.parametres = {"option": self.option,
                            "sol": self.sol,
@@ -27,10 +27,10 @@ class Parameters:
                            "fonte": self.fonte,
                            "evapo": self.evapo,
                            "qualite": self.qualite}
-        with open(os.path.join(self.basin_structure._project_path, "results","parameters.json"), "w") as outfile:
-            json.dump(self.parametres, outfile,indent = 4, default=tuple)
+        with open(os.path.join(self.basin_structure._project_path, "results", "parameters.json"), "w") as outfile:
+            json.dump(self.parametres, outfile, indent=4, default=tuple)
         outfile.close()
-    
+
     def set_option(self, values: np.ndarray):
         # The default values can be changed using the method set_maximum_insolation_day
         self.option = {"ipassim": 24,
@@ -114,34 +114,42 @@ class Parameters:
         # Parameters for the cequeau model
         # DEGREE-DAY
         if model == 1:
-            self.fonte = {"strne_s": values[0],
-                          "tfc_s": values[1],
-                          "tfd_s": values[2],
-                          "tsc_s": values[3],
-                          "tsd_s": values[4],
-                          "ttd": values[5],
-                          "tts_s": values[6],
-                          "jonei": self.option["jonei"],
-                          "tmur": self.solInitial["tmur"],
-                          "tstock": self.solInitial["tstock"]}
+            self.fonte = {"cequeau": {
+                "strne_s": values[0],
+                "tfc_s": values[1],
+                "tfd_s": values[2],
+                "tsc_s": values[3],
+                "tsd_s": values[4],
+                "ttd": values[5],
+                "tts_s": values[6],
+                "jonei": self.option["jonei"],
+                "tmur": self.solInitial["tmur"],
+                "tstock": self.solInitial["tstock"]}
+            }
         # CEMANAIEGE
         elif model == 2:
             # Here we get the mean altitude from the
             # basin structure
-            self.fonte = {"Kf": values[0],
-                          "Tf": values[0],
-                          "CTg": values[0],
-                          "theta": values[0],
-                          "QNBV": values[0],
-                          "Zmed": np.array(self.basin_structure.carreauxPartiels["altitudeMoy"], dtype=np.float32).tolist()}
+            self.fonte = {"cemaNeige": {
+                "Kf": values[0],
+                "Tf": values[0],
+                "CTg": values[0],
+                "theta": values[0],
+                "QNBV": values[0],
+                "Zmed": np.array(self.basin_structure.carreauxPartiels["altitudeMoy"], dtype=np.float32).tolist()
+            }
+            }
 
     def set_evapo(self, values: np.ndarray, model: int):
         # CEQUEAU - THORNWAIT
         if model == 1:
-            self.evapo = {"joeva": self.option["joeva"],
-                          "evnap": values[0],
-                          "xaa": values[1],
-                          "xit": values[2]}
+            self.evapo = {"cequeau": {
+                "joeva": self.option["joeva"],
+                "evnap": values[0],
+                "xaa": values[1],
+                "xit": values[2]
+            }
+            }
         # KPENNMAN
         elif model == 2:
             self.evapo = {"evnap": values[0]}
@@ -175,9 +183,12 @@ class Parameters:
                         "panap": 0,
                         # This is true if the simulations starts in the winter
                         "tinit": 0}
-            self.qualite = {"coprom": values[0],
+            self.qualite = {"cequeau": {
+                            "coprom": values[0],
                             "colarg": values[1],
-                            "temperat": temperat}
+                            "temperat": temperat
+                            }
+                        }
         # TODO: In the future, new water temperature models can be added
         # Future model?
         elif model != 1:
