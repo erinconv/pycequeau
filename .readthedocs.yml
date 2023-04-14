@@ -18,6 +18,3 @@ python:
       path: .
       extra_requirements:
         - docs
-  virtualenv:
-    system_site_packages: false
-    extra_args: ['--no-download']
