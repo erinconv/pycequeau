@@ -3,17 +3,15 @@ pycequeau
 
 Pycequeau is a library that obtains the necessary files to build and run the CEQUEAU hydrological-water temperature model.
 
-This library was developed and tested in python 3.7, given incompatibilities with GDAL. In order to install it and make it run, we recommend using Anaconda and creating a virtual environment:
-
-.. code-block:: bash
-    
-    conda create -n pycequeau python=3.7
-
-
-Now, clone the repository into your local machine and install the dependencies:
+To use this library, first clone the ithub repository
 
 .. code-block:: bash
     
     git clone git@github.com:erinconv/pycequeau.git
     cd pycequeau
-    conda install --file requirements.txt
+
+This library was developed and tested in python 3.7, given incompatibilities with GDAL and newer python versions. To use it correctly, we recommend to use Anaconda as python interpreter. In the ``pycequeau`` folder, create the conda environment using the ``environment.yml`` file as follows:
+
+.. code-block:: bash
+    
+    conda env create -f environment.yml
