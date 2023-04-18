@@ -1,0 +1,23 @@
+name: py37
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - gdal=3.0.2
+  - pyproj
+  - xarray
+  - pytest
+  - scipy
+  - autopep8
+  - matplotlib
+  - ipykernel
+  - ipython
+  - geopandas
+  - rasterstats
+  - nbconvert
+  - nbsphinx
+  - nbsphinx-link
+  - sphinx
+  - sphinx-autosummary-accessors
+prefix: /home/erinconv/anaconda3/envs/py37

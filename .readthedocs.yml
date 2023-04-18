@@ -9,4 +9,4 @@ build:
     python: "mambaforge-4.10" 
 
 conda:
-  environment: environment.yml
+  environment: docs.yml
