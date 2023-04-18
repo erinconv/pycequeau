@@ -5,13 +5,10 @@
 
    This project is under active development.
 
-Contents
---------
-
 .. toctree::
    :maxdepth: 2
-   :caption: Table of Contents:
-   
+   :caption: Content:
+   notebooks/get_meteo
+   notebooks/get_physio
    grass
-   notebooks/get_physio.ipynb
    api
