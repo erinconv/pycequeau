@@ -13,4 +13,5 @@ Contents
    :caption: Table of Contents:
    
    grass
+   notebooks/get_physio.ipynb
    api

@@ -15,7 +15,7 @@ Download the DEM
 We will use QGIS and GRASS-GIS as the base software to obtain all the files in this case. We will start by downloading the DEM using the SRTM-downloader plugin available through QGIS. Then, in the plugins manager placed in, click on ``Manage and Install plugins`` and write ``SRTM Downloader``. Once you have successfully installed the plugin, we can download the DEM for our basin.
 
 Downloading the Mélèzes River data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------
 To download the DEM, we will; need to place our QGIS canvas in the extent that covers the whole basin area. To find out where exactly your basin is located, you will require to have the outlet point coordinates  and the OpenMap base to help you to find the boundaries as shown in the image:
 
 .. image:: figures/GRASS-tutorial/01-Extent.png
@@ -60,7 +60,7 @@ Now we are set to delineate the watershed using this DEM.
 
 
 Delineating the watershed
-=========================
+-------------------------
 
 Once obtained the DEM file, let's open GRASS-GIS and create a new location based on the geographical metadata of our DEM file. In this case we will, I set up the project as follows:
 
