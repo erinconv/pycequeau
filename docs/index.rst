@@ -9,7 +9,5 @@
    :maxdepth: 2
    :caption: Content:
    
-   meteo
-   physio
    grass
    api
