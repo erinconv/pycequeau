@@ -1,53 +1,48 @@
 # Configuration file for the Sphinx documentation builder.
+#
+# For the full list of built-in configuration values, see the documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Project information
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
+
 
 project = 'pycequeau'
-copyright = '2022, Eisinhower Rincon'
+copyright = '2023, Eisinhower Rincon'
 author = 'Eisinhower Rincon'
+release = 'beta'
 
-release = '0.1'
-version = '0.1.0'
-
-# -- General configuration
+# -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
     "nbsphinx",
-    'sphinx.ext.duration',
-    'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.intersphinx',
-    "sphinx.ext.viewcode",
-    "IPython.sphinxext.ipython_directive",
-    "IPython.sphinxext.ipython_console_highlighting",
+    'sphinx.ext.viewcode',
+    'sphinx.ext.napoleon'
 ]
+templates_path = ['_templates']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+
+
+# -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+
+# html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
+
+html_static_path = ['_static']
+
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
 }
 
-templates_path = ['_templates']
-
-source_suffix = ".rst"
-
-# -- Options for HTML output
-
-html_theme = 'sphinx_rtd_theme'
-
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
 
-# -- html_theme_options = {}
-html_theme_options = dict(
-    repository_url="https://github.com/erinconv/pycequeau",
-    repository_branch="main",
-    path_to_docs="docs",
-    use_edit_page_button=True,
-    use_repository_button=True,
-    use_issues_button=True,
-    home_page_in_toc=False,
-    extra_navbar="",
-    navbar_footer_text="",
-)

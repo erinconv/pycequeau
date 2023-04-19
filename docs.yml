@@ -12,12 +12,10 @@ dependencies:
   - autopep8
   - matplotlib
   - ipykernel
-  - ipython
   - geopandas
   - rasterstats
   - nbconvert
   - nbsphinx
-  - nbsphinx-link
   - sphinx
-  - sphinx-autosummary-accessors
+  - nbsphinx-link
 prefix: /home/erinconv/anaconda3/envs/py37
