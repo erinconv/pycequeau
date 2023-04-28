@@ -1,7 +1,5 @@
-name: py37
-channels:
-  - conda-forge
-  - defaults
+name: pycequeau
+
 dependencies:
   - python=3.7
   - gdal=3.0.2
@@ -14,4 +12,3 @@ dependencies:
   - ipykernel
   - geopandas
   - rasterstats
-prefix: /home/erinconv/anaconda3/envs/py37
