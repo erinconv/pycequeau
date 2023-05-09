@@ -1,0 +1,14 @@
+name: pycequeau
+
+dependencies:
+  - python=3.7
+  - gdal=3.0.2
+  - pyproj
+  - xarray
+  - pytest
+  - scipy
+  - autopep8
+  - matplotlib
+  - ipykernel
+  - geopandas
+  - rasterstats

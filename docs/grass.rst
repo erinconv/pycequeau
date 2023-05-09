@@ -88,6 +88,14 @@ Once imported, set the region by runnig the next command line:
   
   g.region -d raster=DEM@Melezes
 
+OPTIONAL: If we have an existent stream nerwork, we can burn this vector file to make our process even more exact by running the next command:
+
+.. code-block:: bash 
+  
+  r.carve -n --overwrite raster=DEM@Melezes vector=streams@Melezes output=BurnedDEM
+
+
+
 Now, you can see the DEM raster from the display window:
 
 .. image:: figures/GRASS-tutorial/08-DEM-GRASS.png
@@ -101,7 +109,14 @@ Before obtaning the next raster maps, let's fill the sinks from the original DEM
   
   r.fill.dir input=DEM@Melezes output=FilledDEM direction=DIR
 
-To process the corrected file, we need to install one grass extention. You can do so by running the next command into the console:
+Then, let's correct the DIR file
+
+.. code-block:: bash
+  
+  r.watershed --overwrite elevation=FilledDEM@Melezes drainage=DIR
+
+
+To process the corrected files, we need to install one grass extention. You can do so by running the next command into the console:
 
 .. code-block:: bash
   
@@ -111,7 +126,7 @@ Once finished, let's obtain the flow accumulation, the subbasins and the stream 
 
 .. code-block:: bash
   
-  r.accumulate --verbose direction=DIR@Melezes format=auto accumulation=FAC subwatershed=Watershed stream=Streams threshold=THERESHOLD coordinates=X,Y
+  r.accumulate --verbose --overwrite direction=DIR@Melezes format=auto accumulation=FAC subwatershed=Watershed stream=Streams threshold=THERESHOLD coordinates=X,Y
 
 where ``THRESHOLD`` is the minimum flow accumulation to be considered as river stream, ``X,Y`` are the outlet coordinates.
 
@@ -129,8 +144,7 @@ Now, let's run the following command line to obtain the watershed delineation co
 
 .. code-block:: bash
   
-  r.watershed --overwrite elevation=FilledDEM@Melezes drainage=DIR
-  r.water.outlet --overwrite input=DIR@Melezes output=Watershed@Melezes coordinates=Xcorrected,Ycorrected
+  r.water.outlet --overwrite input=DIR@Melezes output=Watershed coordinates=Xcorrected,Ycorrected
 
 Retrieve the subbasin raster file.
 ----------------------------------
@@ -139,7 +153,7 @@ To retrieve the subbasin raster, run the following command line
 
 .. code-block:: bash
   
-  r.watershed --overwrite elevation=DEM@THERESHOLD threshold=500000 drainage=DIR basin=CAT
+  r.watershed --overwrite elevation=FilledDEM@Melezes threshold=THEREDHOLD drainage=DIR basin=CAT
 
 and this is the result
 
@@ -154,7 +168,15 @@ Now, let's mask all the results using the obtained watershed delineation as foll
 
   r.mask raster=Watershed@Melezes
 
+We can translate the CAT file from `tif` format into `shp` as follows:
+
+.. code-block:: bash
+
+  r.to.vect -s input=CAT@Melezes output=CAT type=area
+
+
 Now, export the raster as standard TIF formats.
+
 
 .. code-block:: bash
 

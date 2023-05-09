@@ -617,25 +617,28 @@ class Basin:
         return data_array
 
     def create_CPgrid(self):
-        # Default no data value of the CAT raster
-        nodata = self._CAT.GetRasterBand(1).GetNoDataValue()
-        lyr = self._CPfishnet.GetLayer()
-        proj = lyr.GetSpatialRef()
-        xmin, xmax, ymin, ymax = lyr.GetExtent()
+        # Get the CE and CP hps
+        CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
+        CP_shp = ogr.Open(self._CPfishnet, gdal.GA_ReadOnly)
+        lyr_CE = CE_shp.GetLayer()
+        lyr_CP = CP_shp.GetLayer()
+        # Get the CP fishnet projection
+        proj = lyr_CP.GetSpatialRef()
+        # Here we work  with the CE extention to make sure that both shps have the same extent
+        xmin, xmax, ymin, ymax = lyr_CE.GetExtent()
         # Get the resolution to the new raster
-        scale = 25
+        scale = 30
         x_res = int((xmax-xmin)/self._dx)*scale
         y_res = int((ymax-ymin)/self._dy)*scale
         # Make the Union between the two shps
         path = os.path.join(self._project_path, "geographic", "CPgrid.tif")
         self._CPgrid = gdal.GetDriverByName('GTiff').Create(
-            path, abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
-        # print(self._CPgrid)
-        # print(path)
-        print(abs(x_res), abs(y_res))
+            path, x_res, y_res, 1, gdal.GDT_Int32)
+        # Seth projection info to the CP tif
         self._CPgrid.SetProjection(proj.ExportToWkt())
         self._CPgrid.SetGeoTransform(
             (xmin, self._dx/scale, 0, ymin, 0, self._dy/scale))
         band = self._CPgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
-        gdal.RasterizeLayer(self._CPgrid, [1], lyr, options=["ATTRIBUTE=newCPid"])
+        gdal.RasterizeLayer(self._CPgrid, [1], lyr_CP, options=["ATTRIBUTE=newCPid"])
+        return band.ReadAsArray()

@@ -4,6 +4,6 @@ import xarray as xr
 import numpy as np
 import matplotlib as plt
 
-class Simulation:
+class Simulations:
     def __init__(self):
         pass

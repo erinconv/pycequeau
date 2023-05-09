@@ -36,11 +36,12 @@ class StationNetCDF(Meteo):
         super().__init__(basin_struct)
         self.ds = ds
         # Set the basin dimensions based on the information contained in the basssinVersant structure
-        CE_area = self.basin_struct.bassinVersant["superficieCE"]*1e6 # Convert from km2 to m2
+        # Convert from km2 to m2
+        CE_area = self.basin_struct.bassinVersant["superficieCE"]*1e6
         self.basin_struct.set_dimenssions(np.sqrt(CE_area), np.sqrt(CE_area))
 
     @classmethod
-    def charge_CORDEX_Meteo(cls,vars_path: str) -> StationNetCDF:
+    def charge_CORDEX_Meteo(cls, bassinVersant: Basin, vars_path: str) -> StationNetCDF:
         """_summary_
 
         Args:
@@ -52,12 +53,12 @@ class StationNetCDF(Meteo):
         vars_dict = manage_files.dict_netCDF(vars_path)
         ds = manage_files.get_CORDEX_Dataset(vars_dict)
         # Construct object
-        obj = cls(ds)
+        obj = cls(bassinVersant, ds)
         return obj
         pass
-    
+
     @ classmethod
-    def charge_ERA_Meteo(cls, bassinVersant: Basin , vars_path: str) -> StationNetCDF:
+    def charge_ERA_Meteo(cls, bassinVersant: Basin, vars_path: str) -> StationNetCDF:
         """_summary_
 
         Args:
@@ -69,7 +70,7 @@ class StationNetCDF(Meteo):
         vars_dict = manage_files.dict_netCDF(vars_path)
         ds = manage_files.get_ERA_Dataset(vars_dict)
         # Construct object
-        obj = cls(bassinVersant,ds)
+        obj = cls(bassinVersant, ds)
         return obj
 
     @classmethod
@@ -87,9 +88,11 @@ class StationNetCDF(Meteo):
         # Get the CEs and the i,j values from the bassinVersant structure.
         CEs = np.array(basin_struct.bassinVersant["carreauxEntiers"]["CEid"])
         # Here we substract 10 to use this vector as index in the meteo dataset
-        i = np.array(basin_struct.bassinVersant["carreauxEntiers"]["i"]) - 10 #columns
-        j = np.array(basin_struct.bassinVersant["carreauxEntiers"]["j"]) - 10 #rows
-        
+        i = np.array(
+            basin_struct.bassinVersant["carreauxEntiers"]["i"]) - 10  # columns
+        j = np.array(
+            basin_struct.bassinVersant["carreauxEntiers"]["j"]) - 10  # rows
+
         # Remove CE variable from the main dataset
         var_list.remove("CE")
         # Convert date to datenum
@@ -130,7 +133,7 @@ class StationNetCDF(Meteo):
         # Create the CEgrid file
         CE_array = self.basin_struct.create_CEgrid()
         # Open the shp file from the basin structure
-        watershed = ogr.Open(self.basin_struct._Basin,gdal.GA_ReadOnly)
+        watershed = ogr.Open(self.basin_struct._Basin, gdal.GA_ReadOnly)
         # Get x-y pairs
         xy_pair = get_netCDF_grids(self.ds,
                                    self.basin_struct._CEgrid,
@@ -142,7 +145,7 @@ class StationNetCDF(Meteo):
             xy_pair[:, 1],
             epsg_dem)
         # Open DEM to use it below
-        DEM = gdal.Open(self.basin_struct._DEM,gdal.GA_ReadOnly)
+        DEM = gdal.Open(self.basin_struct._DEM, gdal.GA_ReadOnly)
         # Create stations_table
         self.table = create_station_table(self.basin_struct._CEgrid,
                                           DEM,
@@ -151,5 +154,6 @@ class StationNetCDF(Meteo):
                                           xy_pair)
         # Export stations table grid points as csv
         # TODO: Export in the future as shp file
-        file_name = os.path.join(self.basin_struct._project_path,"geographic","meteo_stations.csv")
-        self.table.to_csv(file_name,index=False)
+        file_name = os.path.join(
+            self.basin_struct._project_path, "geographic", "meteo_stations.csv")
+        self.table.to_csv(file_name, index=False)

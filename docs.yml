@@ -18,4 +18,5 @@ dependencies:
   - nbsphinx
   - sphinx
   - nbsphinx-link
+  - sphinx-copybutton
 prefix: /home/erinconv/anaconda3/envs/py37

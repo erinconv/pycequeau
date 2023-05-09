@@ -94,28 +94,26 @@ def send_values_test() -> tuple:
 
     temperature_params = [
         # COPROM  Coefficient defining minimum river depth as a ratio of width
-        2,
+        4,
         # COLARG Coefficient defining minimum river width
-        3,
+        3.5,
         # CRAYSO Weighting coefficient for solar (short wave) radiation
-        2,
+        3.2915,
         # CRAYIN Weighting coefficient for infrared radiation
-        2,
+        0.461,
         # CEVAPO Weighting coefficient for evaporation (latent heat)
-        2,
+        1.1774,
         # CCONVE Weighting coefficient for convection (sensible heat)
-        2,
+        2.5407,
         # CRIGEL Freeze criterion for all whole squares (minimum amount of snow in mm)
-        1000,
+        896.5066,
         # TNAP Groundwater temperature (°C)
-        
-        6.48,
+        8.8115,
         # BASSOL Total precipitation required to dectect days with low solar radiation (mm)
-        15.98,
+        17.4304,
         # Correction du rayonnement solaire moyen (RSM) pour les jours sanspluie (RSM&(1+CORSOL)) et les jours de fortes pluies(RSM&(1-CORSOL)) (varie entre 0,0 et 1,0).
-        1
+        0
     ]
-
     # Convert the parameter list into the required format for the CEQUEAU model
     flow_parameters = np.array(flow_parameters, dtype=np.float32).tolist()
     evapo_parameters = np.array(evapo_parameters, dtype=np.float32).tolist()

@@ -22,11 +22,11 @@ extensions = [
     "nbsphinx",
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx_copybutton'
 ]
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -45,4 +45,3 @@ intersphinx_mapping = {
 
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
-
