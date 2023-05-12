@@ -3,14 +3,14 @@ from __future__ import annotations
 from osgeo import gdal, ogr
 import os
 import json
-from math import ceil,floor
+from math import ceil, floor
 import pandas as pd
 import numpy as np
 from pycequeau.physiographic import carreauxEntiers as CEs
 from pycequeau.physiographic import carreauxPartiels as CPs
 from pycequeau.physiographic import CPfishnet as CPfs
 from pycequeau.core import utils as u
-from pycequeau.core import projections as proj
+from pycequeau.core import projections as ceqproj
 import geopandas as gpd
 import sys
 
@@ -30,13 +30,13 @@ class Basin:
             self._project_path, "geographic", "CE_fishnet.shp")
         self._CPfishnet = os.path.join(
             self._project_path, "geographic", "CP_fishnet.shp")
-        
-        # Check if the bassin versant object is an input file 
+
+        # Check if the bassin versant object is an input file
         if len(args) == 1:
             # Check if the provided file is an an actual json file
             try:
-                # Open the json file file 
-                f = open(args[0],"r")
+                # Open the json file file
+                f = open(args[0], "r")
                 self.bassinVersant = json.loads(f.read())
             except ValueError:
                 raise ValueError("Provided file is not a json file")
@@ -84,7 +84,7 @@ class Basin:
         return self._epsg
 
     def _set_EPSG(self):
-        self._epsg = proj.get_proj_code(self._DEM)
+        self._epsg = ceqproj.get_proj_code(self._DEM)
 
     @classmethod
     def _create_CEfishnet(cls,
@@ -230,22 +230,20 @@ class Basin:
             os.remove(self._CPfishnet)
 
         self.join_shps(self._CEfishnet,
-                    self._SubBasins,
-                    self._CPfishnet)
-        
-        
+                       self._SubBasins,
+                       self._CPfishnet)
 
-    def create_CEfishnet(self, xoffset = 0.0, yoffset = 0.0):
+    def create_CEfishnet(self, xoffset=0.0, yoffset=0.0):
         # Check if the file already exist
         if os.path.exists(self._CEfishnet):
             os.remove(self._CEfishnet)
-        
+
         self._create_CEfishnet(self._Basin,
-                            self._dx,
-                            self._dy,
-                            self._CEfishnet,
-                            xoffset,
-                            yoffset)
+                               self._dx,
+                               self._dy,
+                               self._CEfishnet,
+                               xoffset,
+                               yoffset)
 
     def polish_CPfishnet(self, area_th=0.05):
         """_summary_
@@ -261,20 +259,21 @@ class Basin:
         CPfishnet = gpd.read_file(self._CPfishnet)
         # out_name = os.path.join(project_folder, "geographic", "CP_smallCP.shp")
         CPfishnet = CPfs.identify_small_CPs(CEfishnet, CPfishnet, area_th)
-        CPfishnet, CEfishnet = CPfs.remove_border_CPs(CEfishnet, CPfishnet, self._FAC)
-        CPfishnet = CPfs.remove_smallCP(CEfishnet,CPfishnet)
-        CPfishnet = CPfs.dissolve_pixels(CEfishnet,CPfishnet,area_th)
-        CPfishnet = CPfs.force_4CP(CEfishnet,CPfishnet,area_th)
+        CPfishnet, CEfishnet = CPfs.remove_border_CPs(
+            CEfishnet, CPfishnet, self._FAC)
+        CPfishnet = CPfs.remove_smallCP(CEfishnet, CPfishnet)
+        CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, area_th)
+        CPfishnet = CPfs.force_4CP(CEfishnet, CPfishnet, area_th)
         # Save the files with all the CP dissolved
         CPfishnet.to_file(self._CPfishnet)
 
     def CP_routing(self, flow_th=1000):
         # Create the CP grid from the merged shp file
-        # This has the same dimensions as the FAC file 
+        # This has the same dimensions as the FAC file
         # in order to compare them both to do the routing process
         # The CP grid is already processed and well polished
-        CP_array = u.rasterize_shp(self._CPfishnet,self._FAC,"CPid")
-        CE_array = u.rasterize_shp(self._CEfishnet,self._FAC,"CEid")
+        CP_array = u.rasterize_shp(self._CPfishnet, self._FAC, "CPid")
+        CE_array = u.rasterize_shp(self._CEfishnet, self._FAC, "CEid")
 
         # Open fishnets as geodataframes
         CEfishnet = gpd.read_file(self._CEfishnet)
@@ -293,25 +292,27 @@ class Basin:
         # self.rtable["downstreamCPs"] = pd.to_numeric(self.rtable["downstreamCPs"])
         # Compute the route CP by CP
         self.outlet_routes = CPfs.outlet_routes(self.rtable)
-        
-        
+
         # Renumbering the fishnets
-        CPfishnet,CEfishnet = CPfs.renumber_fishnets(CPfishnet,CEfishnet,self.rtable)
+        CPfishnet, CEfishnet = CPfs.renumber_fishnets(
+            CPfishnet, CEfishnet, self.rtable)
         # Compute cumulative percentage of surface area
-        CPfishnet, upstreamCPs = CPfs.cumulative_areas(CPfishnet,CEfishnet,self.outlet_routes)
+        CPfishnet, upstreamCPs = CPfs.cumulative_areas(
+            CPfishnet, CEfishnet, self.outlet_routes)
         # Compute the mean altitudes
-        CPfishnet, CEfishnet = CPfs.mean_altitudes(CEfishnet,CPfishnet,self._DEM)
+        CPfishnet, CEfishnet = CPfs.mean_altitudes(
+            CEfishnet, CPfishnet, self._DEM)
         # Add the table to the structure
         # self.rtable = rtable
         # self.outlet_routes = outlet_routes
         # Export the tables as csv into the geographical information
         # self.rtable.to_csv(os.path.join(self._project_path, "geographic", "rtable.csv"),index=False)
-        
+
         np.savetxt("outlet_routes.csv",
-                   self.outlet_routes,delimiter=",",fmt="%1i")
+                   self.outlet_routes, delimiter=",", fmt="%1i")
         # outlet_routes(,index=False)
-        
-        # Add rtable to the 
+
+        # Add rtable to the
         # out_name = os.path.join(
         #     self._project_path, "geographic", "CP_fishnet_test.shp")
         # out_name2 = os.path.join(
@@ -319,7 +320,7 @@ class Basin:
         # if os.path.exists(out_name):
         #     os.remove(out_name)
         #     os.remove(out_name2)
-        
+
         # Send the fishnets to the basin object to have it available
         self.CPfishnet = CPfishnet
         self.CEfishnet = CEfishnet
@@ -331,7 +332,7 @@ class Basin:
     def get_water_cover(cls,
                         shp_name: str,
                         shp_fishnet: gpd.GeoDataFrame,
-                        ref_raster: str, att: str)-> list:
+                        ref_raster: str, att: str) -> list:
         # Open the waterbody as geopandas
         waterBodies = gpd.read_file(shp_name)
         # Clip the water shp with the fishnet
@@ -340,11 +341,12 @@ class Basin:
         # Create a new field to use it as reference raster attribute
         clip_shp_water["mask"] = 1
         # Save to a temporary file
-        temp_shp_name = shp_name.replace(".shp","2.shp")
+        temp_shp_name = shp_name.replace(".shp", "2.shp")
         clip_shp_water.to_file(temp_shp_name)
         # Save shp as rasterizd tiff
-        temp_tif_name = shp_name.replace(".shp",".tif")
-        u.rasterize_shp_as_byte(temp_shp_name,ref_raster,"mask",temp_tif_name)
+        temp_tif_name = shp_name.replace(".shp", ".tif")
+        u.rasterize_shp_as_byte(
+            temp_shp_name, ref_raster, "mask", temp_tif_name)
         # Get the x,y vaues of each shp feature
         bounds = shp_fishnet["geometry"].bounds
         shp_fishnet = pd.concat([shp_fishnet, bounds], axis=1)
@@ -359,20 +361,20 @@ class Basin:
         for index, _ in shp_fishnet.iterrows():
             # Get the feature
             feature = shp_fishnet.loc[index]
-            raster_feature = u.rasterize_feature(feature,temp_tif_name,att)
+            raster_feature = u.rasterize_feature(feature, temp_tif_name, att)
             # Count the number of
-            water.append(float(np.count_nonzero(raster_feature)/raster_feature.size*100.0))
-        
-        # Delete the temporary files
-        os.remove(shp_name.replace(".shp","2.shp"))
-        os.remove(shp_name.replace(".shp",".tif"))
-        return water
+            water.append(float(np.count_nonzero(
+                raster_feature)/raster_feature.size*100.0))
 
+        # Delete the temporary files
+        os.remove(shp_name.replace(".shp", "2.shp"))
+        os.remove(shp_name.replace(".shp", ".tif"))
+        return water
 
     @classmethod
     def get_land_cover(cls,
                        gdf: gpd.GeoDataFrame,
-                       LC:str,att: str) -> tuple:
+                       LC: str, att: str) -> tuple:
         # Get the x,y vaues of each shp feature
         bounds = gdf["geometry"].bounds
         gdf = pd.concat([gdf, bounds], axis=1)
@@ -388,12 +390,14 @@ class Basin:
         for index, _ in gdf.iterrows():
             # Get the feature
             feature = gdf.loc[index]
-            raster_feature = u.rasterize_feature(feature,LC,att)
+            raster_feature = u.rasterize_feature(feature, LC, att)
             # Count the number of
-            pctForet.append(float(np.count_nonzero((raster_feature >= 1) & (raster_feature <= 6))/raster_feature.size*100.0))
-            pctSolNu.append(float(np.count_nonzero((raster_feature >= 7) & (raster_feature <= 13))/raster_feature.size*100.0))
+            pctForet.append(float(np.count_nonzero((raster_feature >= 1) & (
+                raster_feature <= 6))/raster_feature.size*100.0))
+            pctSolNu.append(float(np.count_nonzero((raster_feature >= 7) & (
+                raster_feature <= 13))/raster_feature.size*100.0))
         return pctForet, pctSolNu
-    
+
     def carreauxEntiers_struct(self):
         # Create the CE grid with the shp dimenssions,
         # not with the reference raster dimensions to save memory and
@@ -402,23 +406,23 @@ class Basin:
         # Find i,j coordinates
         coordinates = CEs.find_grid_coordinates(CE_Array)
         # Open the CE and fishnet shp
-        #* Temporary. The real instruction is in the previous routine
+        # * Temporary. The real instruction is in the previous routine
         # CEfishnet = gpd.read_file(self._CEfishnet)
         # CPfishnet = gpd.read_file(self._CPfishnet)
         # self.CPfishnet = CPfishnet
         # self.CEfishnet = CEfishnet
         # Get the landcover dataset
         pctForet, pctSolNu = self.get_land_cover(self.CEfishnet,
-                                        self._LC,
-                                        "newCEid")
+                                                 self._LC,
+                                                 "newCEid")
         # Get the lakes
         pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                             self.CEfishnet,
-                             self._DEM,"newCEid")
+                                             self.CEfishnet,
+                                             self._DEM, "newCEid")
         # Get the marshes
         pctMarais = self.get_water_cover(self._Wetlands,
-                             self.CEfishnet,
-                             self._DEM,"newCEid")
+                                         self.CEfishnet,
+                                         self._DEM, "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
         CE_shp = np.array(pctLacRiviere) + np.array(pctMarais)
         CE_tif = np.array(pctForet) + np.array(pctSolNu)
@@ -430,25 +434,29 @@ class Basin:
         # Drop the non data CEs
         self.CEfishnet = self.CEfishnet[self.CEfishnet["newCEid"] != 0]
         # Append the i,j to the CE_fishnet
-        self.CEfishnet =  self.CEfishnet.reindex(columns=self.CEfishnet.columns.tolist() + ['i', 'j'])
+        self.CEfishnet = self.CEfishnet.reindex(
+            columns=self.CEfishnet.columns.tolist() + ['i', 'j'])
         # Place the values into the dataset
         self.CEfishnet["i"] = coordinates["i"].values
         self.CEfishnet["j"] = coordinates["j"].values
         # Create the carreauxEntier dataset
-        self.carreauxEntiers = pd.DataFrame(columns=["CEid","i","j","pctLacRiviere",
-                                                     "pctForet","pctMarais","pctSolNu",
+        self.carreauxEntiers = pd.DataFrame(columns=["CEid", "i", "j", "pctLacRiviere",
+                                                     "pctForet", "pctMarais", "pctSolNu",
                                                      "altitude"],
-                                       index=coordinates.index,
-                                       data=np.c_[coordinates["CEid"].values,
-                                                  coordinates["i"].values,
-                                                  coordinates["j"].values,
-                                                  np.array(pctLacRiviere).astype("float"),
-                                                  pctForet.astype("float"),
-                                                  np.array(pctMarais).astype("float"),
-                                                  pctSolNu.astype("float"),
-                                                  self.CEfishnet["altitude"].values])
+                                            index=coordinates.index,
+                                            data=np.c_[coordinates["CEid"].values,
+                                                       coordinates["i"].values,
+                                                       coordinates["j"].values,
+                                                       np.array(pctLacRiviere).astype(
+                                                "float"),
+            pctForet.astype("float"),
+            np.array(pctMarais).astype(
+                                                "float"),
+            pctSolNu.astype("float"),
+            self.CEfishnet["altitude"].values])
         # Change the values that must be integer types
-        self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype("uint16")
+        self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
+            "uint16")
         self.carreauxEntiers["i"] = self.carreauxEntiers["i"].astype("uint8")
         self.carreauxEntiers["j"] = self.carreauxEntiers["j"].astype("uint8")
         self.CEfishnet.to_file(self._CEfishnet)
@@ -458,7 +466,7 @@ class Basin:
         # Start by sorting the values with in the dataframe
         self.CPfishnet = self.CPfishnet.sort_values(by="newCPid")
         # Open the CE and fishnet shp
-        #* Temporary. The real instruction is in the previous routine
+        # * Temporary. The real instruction is in the previous routine
         # self.CEfishnet  = gpd.read_file(self._CEfishnet)
         # self.CPfishnet = gpd.read_file(self._CPfishnet)
         # Open the route table and outlet
@@ -475,16 +483,16 @@ class Basin:
         codes = CPs.get_codes(self.CPfishnet)
         # Get the landcover dataset
         pctForet, pctSolNu = self.get_land_cover(self.CPfishnet,
-                                        self._LC,
-                                        "newCPid")
+                                                 self._LC,
+                                                 "newCPid")
         # Get the lakes
         pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                             self.CPfishnet,
-                             self._DEM,"newCPid")
+                                             self.CPfishnet,
+                                             self._DEM, "newCPid")
         # Get the marshes
         pctMarais = self.get_water_cover(self._Wetlands,
-                             self.CPfishnet,
-                             self._DEM,"newCPid")
+                                         self.CPfishnet,
+                                         self._DEM, "newCPid")
         # Scale the percentages to make sure that they all sum up 100%
         CP_shp = np.array(pctLacRiviere) + np.array(pctMarais)
         CP_tif = np.array(pctForet) + np.array(pctSolNu)
@@ -494,54 +502,64 @@ class Basin:
         pctSolNu[np.isnan(pctSolNu)] = 0
         pctForet[np.isnan(pctForet)] = 0
         # Cumulate the variables
-        cumulates = CPs.cumulate_variables(self.outlet_routes,pctForet,pctLacRiviere,pctMarais)
+        cumulates = CPs.cumulate_variables(
+            self.outlet_routes, pctForet, pctLacRiviere, pctMarais)
         # Drop the non data CPs
         # self.CPfishnet = self.CPfishnet[self.CPfishnet["newCPid"] != 0]
         # Get river geometry
-        geometry = CPs.get_river_geometry(self.CPfishnet,self.rtable)
-        self.CPfishnet =  self.CPfishnet.reindex(columns=self.CPfishnet.columns.tolist() + ['i', 'j'])
+        geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
+        self.CPfishnet = self.CPfishnet.reindex(
+            columns=self.CPfishnet.columns.tolist() + ['i', 'j'])
         # Place the values into the dataset
         self.CPfishnet["i"] = coordinates["i"].values
         self.CPfishnet["j"] = coordinates["j"].values
         # Create the carreauxPartiel dataset
-        self.carreauxPartiels = pd.DataFrame(columns=["CPid","i","j","code",
-                                                     "pctSurface","idCPAval","idCPsAmont",
-                                                     "CEid","pctEau","pctForet","pctMarais",
-                                                     "pctSolNu","altitudeMoy","profondeurMin",
-                                                     "longueurCoursEauPrincipal","largeurCoursEauPrincipal",
-                                                     "penteRiviere","cumulPctSuperficieCPAmont","cumulPctSuperficieLacsAmont",
-                                                     "cumulPctSuperficieMaraisAmont","cumulPctSuperficieForetAmont"],
-                                       index=coordinates.index,
-                                       data=np.c_[coordinates["CPid"].values,
-                                                  coordinates["i"].values,
-                                                  coordinates["j"].values,
-                                                  np.array(codes),
-                                                  self.CPfishnet["pctSurface"].values,
-                                                  self.rtable["downstreamCPs"].values,
-                                                  self.rtable["upstreamCPs"].values,
-                                                  self.CPfishnet["newCEid"].values,
-                                                  np.array(pctLacRiviere),
-                                                  pctForet,
-                                                  np.array(pctMarais),
-                                                  pctSolNu,
-                                                  self.CPfishnet["altitude"].values,
-                                                  geometry["profondeurMin"].values,
-                                                  geometry["longueurCoursEauPrincipal"].values,
-                                                  geometry["largeurCoursEauPrincipal"].values,
-                                                  geometry["penteRiviere"].values,
-                                                  self.CPfishnet["cumulPctSurf"].values,
-                                                  cumulates["cumulPctSuperficieLacsAmont"].values,
-                                                  cumulates["cumulPctSuperficieMaraisAmont"].values,
-                                                  cumulates["cumulPctSuperficieForetAmont"].values,
-                                                  ])
+        self.carreauxPartiels = pd.DataFrame(columns=["CPid", "i", "j", "code",
+                                                      "pctSurface", "idCPAval", "idCPsAmont",
+                                                      "CEid", "pctEau", "pctForet", "pctMarais",
+                                                      "pctSolNu", "altitudeMoy", "profondeurMin",
+                                                      "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
+                                                      "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
+                                                      "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont"],
+                                             index=coordinates.index,
+                                             data=np.c_[coordinates["CPid"].values,
+                                                        coordinates["i"].values,
+                                                        coordinates["j"].values,
+                                                        np.array(codes),
+                                                        self.CPfishnet["pctSurface"].values,
+                                                        self.rtable["downstreamCPs"].values,
+                                                        self.rtable["upstreamCPs"].values,
+                                                        self.CPfishnet["newCEid"].values,
+                                                        np.array(
+                                                            pctLacRiviere),
+                                                        pctForet,
+                                                        np.array(pctMarais),
+                                                        pctSolNu,
+                                                        self.CPfishnet["altitude"].values,
+                                                        geometry["profondeurMin"].values,
+                                                        geometry["longueurCoursEauPrincipal"].values,
+                                                        geometry["largeurCoursEauPrincipal"].values,
+                                                        geometry["penteRiviere"].values,
+                                                        self.CPfishnet["cumulPctSurf"].values,
+                                                        cumulates["cumulPctSuperficieLacsAmont"].values,
+                                                        cumulates["cumulPctSuperficieMaraisAmont"].values,
+                                                        cumulates["cumulPctSuperficieForetAmont"].values,
+                                                        ])
         # Change the values that must be integer types
-        self.carreauxPartiels["CEid"] = np.array(self.carreauxPartiels["CEid"],dtype=np.int16)
-        self.carreauxPartiels["CPid"] = np.array(self.carreauxPartiels["CPid"],dtype=np.int16)
-        self.carreauxPartiels["idCPAval"] = np.array(self.carreauxPartiels["idCPAval"],dtype=np.int16)
-        self.carreauxPartiels["i"] = np.array(self.carreauxPartiels["i"],dtype=np.int8)
-        self.carreauxPartiels["j"] = np.array(self.carreauxPartiels["j"],dtype=np.int8)
-        self.carreauxPartiels["code"] = np.array(self.carreauxPartiels["code"],dtype=np.int8)
-        self.carreauxPartiels["penteRiviere"] = np.array(self.carreauxPartiels["penteRiviere"],dtype=np.float32)
+        self.carreauxPartiels["CEid"] = np.array(
+            self.carreauxPartiels["CEid"], dtype=np.int16)
+        self.carreauxPartiels["CPid"] = np.array(
+            self.carreauxPartiels["CPid"], dtype=np.int16)
+        self.carreauxPartiels["idCPAval"] = np.array(
+            self.carreauxPartiels["idCPAval"], dtype=np.int16)
+        self.carreauxPartiels["i"] = np.array(
+            self.carreauxPartiels["i"], dtype=np.int8)
+        self.carreauxPartiels["j"] = np.array(
+            self.carreauxPartiels["j"], dtype=np.int8)
+        self.carreauxPartiels["code"] = np.array(
+            self.carreauxPartiels["code"], dtype=np.int8)
+        self.carreauxPartiels["penteRiviere"] = np.array(
+            self.carreauxPartiels["penteRiviere"], dtype=np.float32)
         # self.carreauxPartiels.to_csv("carreauxPartiels.csv")
         self.CPfishnet.to_file(self._CPfishnet)
 
@@ -567,21 +585,23 @@ class Basin:
         }
         # Send the carreuxEntiers values
         for CE_name in columns_CE:
-            self.bassinVersant["carreauxEntiers"].update({CE_name: self.carreauxEntiers[CE_name].values.tolist()})
+            self.bassinVersant["carreauxEntiers"].update(
+                {CE_name: self.carreauxEntiers[CE_name].values.tolist()})
         # Send the carreuxPartiels values
         for CP_name in columns_CP:
-            self.bassinVersant["carreauxPartiels"].update({CP_name: self.carreauxPartiels[CP_name].values.tolist()})
+            self.bassinVersant["carreauxPartiels"].update(
+                {CP_name: self.carreauxPartiels[CP_name].values.tolist()})
         self.bassinVersant["superficieCE"] = self._dx*self._dy*1.0e-6
         self.bassinVersant["nomBassinVersant"] = self.name
-        self.bassinVersant["nbCpCheminLong"] = self.outlet_routes.shape[1] 
+        self.bassinVersant["nbCpCheminLong"] = self.outlet_routes.shape[1]
         # Save the files in the results folder
-        with open(os.path.join(self._project_path, "results","bassinVersant.json"), "w") as outfile:
-            json.dump(self.bassinVersant, outfile,indent = 4)
+        with open(os.path.join(self._project_path, "results", "bassinVersant.json"), "w") as outfile:
+            json.dump(self.bassinVersant, outfile, indent=4)
         pass
 
     def create_CEgrid(self):
         # Default no data value of the CAT raster
-        # ref_raster = gdal.Open(self._DEM,gdal.GA_ReadOnly)
+        ref_raster = gdal.Open(self._DEM, gdal.GA_ReadOnly)
         CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
         lyr = CE_shp.GetLayer()
         # new_field = ogr.FieldDefn('CEid', ogr.OFTInteger)
@@ -612,7 +632,8 @@ class Basin:
         band = self._CEgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
         band.FlushCache()
-        gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=["ATTRIBUTE=newCEid"])
+        gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=[
+                            "ATTRIBUTE=newCEid"])
         data_array = band.ReadAsArray()
         return data_array
 
@@ -640,5 +661,6 @@ class Basin:
             (xmin, self._dx/scale, 0, ymin, 0, self._dy/scale))
         band = self._CPgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
-        gdal.RasterizeLayer(self._CPgrid, [1], lyr_CP, options=["ATTRIBUTE=newCPid"])
+        gdal.RasterizeLayer(self._CPgrid, [1], lyr_CP, options=[
+                            "ATTRIBUTE=newCPid"])
         return band.ReadAsArray()

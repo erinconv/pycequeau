@@ -42,13 +42,11 @@ def create_grid_var(ds: xr.Dataset,
     )
     # this is for getting the CE number
     count = 0
-    for i,j in zip(cols,rows):
+    for i, j in zip(cols, rows):
         # Place the value in the new matrix
-        dr[var_name][:,count] = ds[var_name][:,j,i].values.astype(np.float32)
+        dr[var_name][:, count] = ds[var_name][:,
+                                              j, i].values.astype(np.float32)
         count += 1
-    # print(ds[var_name][:,i,j].values.astype(np.float32))
-    # print(dr[var_name][:,count].values)
-    # print(dr)
     return dr
 
 
@@ -75,8 +73,8 @@ def interpolation_netCDF(ds: xr.Dataset,
     # Create objective
     i_res = CEregrid.ReadAsArray().shape[1]
     j_res = CEregrid.ReadAsArray().shape[0]
-    i = np.linspace(0, i_res, i_res, dtype=np.int8)+10
-    j = np.linspace(0, j_res, j_res, dtype=np.int8)+10
+    i = np.linspace(0, i_res, i_res)+10
+    j = np.linspace(0, j_res, j_res)+10
     # ig, jg = np.meshgrid(i, j, indexing="ij")
     # Check whether the longitudes need to be corrected
     if ds["lon"].max() > 0:
@@ -92,16 +90,20 @@ def interpolation_netCDF(ds: xr.Dataset,
     ds = ds.isel(lat=slice(lat_min_idx-1, lat_max_idx),
                  lon=slice(lon_min_idx, lon_max_idx+1))
     # Create reference regridder
-    x = np.linspace(min(i), max(i), len(ds["lon"].values), dtype=np.int8)
-    y = np.linspace(min(j), max(j), len(ds["lat"].values), dtype=np.int8)
+    x = np.linspace(min(i), max(i), len(ds["lon"].values))
+    y = np.linspace(min(j), max(j), len(ds["lat"].values))
+    # x = np.linspace(min(i), max(i), len(ds["lon"].values), dtype=np.int8)
+    # y = np.linspace(min(j), max(j), len(ds["lat"].values), dtype=np.int8)
     ds = ds.assign_coords(lat=y)
     ds = ds.assign_coords(lon=x)
     # Create mask
     dsi = ds.interp(time=ds["time"], lat=j, lon=i, method=method)
     # mask interpolated dataset
     dsi = dsi.where(CEregrid.ReadAsArray() > 0)
-    pp = np.array(dsi["pTot"])[0, :,:]
     dsi = dsi.rename(lat="j", lon="i")
+    dsi = dsi.transpose("time", "j", "i")
+    dsi["i"] = i.astype(np.int16)
+    dsi["j"] = j.astype(np.int16)
     ds = ds.rename(lat="j", lon="i")
     dsi = _appendCEgrid(dsi, CEregrid)
     dsi = dsi.assign_attrs(
@@ -141,7 +143,7 @@ def get_netCDF_grids(ds: xr.DataArray,
     y, x = projections.utm_to_latlon((ymin, ymax),
                                      (xmin, xmax),
                                      epsg_dem)
-    watershed_extent = (y,x)
+    watershed_extent = (y, x)
     # Check if retrieved points fall in watershed extent
     xypair = u.falls_in_extent(watershed_extent,
                                lon_mask,
@@ -167,6 +169,7 @@ def create_station_table(CEregrid: gdal.Dataset,
     Returns:
         pd.DataFrame: _description_
     """
+    ce_gri = CEregrid.ReadAsArray()
     i_res = CEregrid.ReadAsArray().shape[1]
     j_res = CEregrid.ReadAsArray().shape[0]
     i = np.linspace(0, i_res, i_res, dtype=int)
@@ -175,6 +178,29 @@ def create_station_table(CEregrid: gdal.Dataset,
     row, col = u.get_index_list(CEregrid,
                                 lat_utm,
                                 lon_utm)
+    # Check if there are values outsite the actual boundaries of the watershed
+    # Check first cols
+    row = np.array(row, dtype=np.float32)
+    col = np.array(col, dtype=np.float32)
+    row[row >= j_res] = np.nan
+    xy_pair = xy_pair[~np.isnan(row), :]
+    col = col[~np.isnan(row)]
+    lat_utm = lat_utm[~np.isnan(row)]
+    lon_utm = lon_utm[~np.isnan(row)]
+    row = row[~np.isnan(row)]
+
+    # then check the rows
+    col[col >= i_res] = np.nan
+    xy_pair = xy_pair[~np.isnan(col), :]
+    row = row[~np.isnan(col)]
+    lat_utm = lat_utm[~np.isnan(col)]
+    lon_utm = lon_utm[~np.isnan(col)]
+    col = col[~np.isnan(col)]
+
+    # Reconvert to integer
+    row = np.array(row, dtype=np.int16)
+    col = np.array(col, dtype=np.int16)
+    # ~np.isnan(xy_pairs).any(axis=1), :
     # Create dataframe and append to the MeteoObject
     stations = pd.DataFrame(data={
         "id": ["NC-grid-"+str(num) for num in range(len(i[col]))],
