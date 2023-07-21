@@ -74,6 +74,12 @@ class Basin:
             self._project_path, "geographic", file_list[6])
 
     def set_dimenssions(self, dx: float, dy: float):
+        """_summary_
+
+        Args:
+            dx (float): _description_
+            dy (float): _description_
+        """
         ref_dataset = gdal.Open(self._DEM, gdal.GA_ReadOnly)
         transform = ref_dataset.GetGeoTransform()
         pixelWidth = transform[1]
