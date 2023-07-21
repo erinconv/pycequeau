@@ -74,12 +74,12 @@ def rasterize_shp(grid_shp: str,
     xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
-    grid_raster = gdal.GetDriverByName('GTiff').Create(
-        grid_shp.replace(".shp", ".tif"),
-        x_res, y_res, 1, gdal.GDT_Int32)
+    # grid_raster = gdal.GetDriverByName('GTiff').Create(
+    #     grid_shp.replace(".shp", ".tif"),
+    #     x_res, y_res, 1, gdal.GDT_Int32)
     # Create the raster in the memory
-    # grid_raster = gdal.GetDriverByName('MEM').Create(
-    #     '', x_res, y_res, 1, gdal.GDT_Int32)
+    grid_raster = gdal.GetDriverByName('MEM').Create(
+        '', x_res, y_res, 1, gdal.GDT_Int32)
     grid_raster.SetGeoTransform(raster.GetGeoTransform())
     grid_raster.SetProjection(raster.GetProjection())
     band = grid_raster.GetRasterBand(1)

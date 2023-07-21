@@ -611,7 +611,7 @@ class Basin:
             self.carreauxPartiels["code"], dtype=np.int8)
         self.carreauxPartiels["penteRiviere"] = np.array(
             self.carreauxPartiels["penteRiviere"], dtype=np.float32)
-        # self.carreauxPartiels.to_csv("carreauxPartiels.csv")
+        self.carreauxPartiels.to_csv("carreauxPartiels.csv")
         self.CPfishnet.to_file(self._CPfishnet)
 
     def create_bassinVersant_structure(self):
@@ -670,8 +670,8 @@ class Basin:
         proj = lyr.GetSpatialRef()
         xmin, xmax, ymin, ymax = lyr.GetExtent()
         # Get the resolution to the new raster
-        x_res = int((xmax-xmin)/self._dx)
-        y_res = int((ymax-ymin)/self._dy)
+        x_res = ceil((xmax-xmin)/self._dx)
+        y_res = ceil((ymax-ymin)/self._dy)
         # Get dimenssions for the CEgrid rasters
 
         # CEgrid path
@@ -679,12 +679,15 @@ class Basin:
         self._CEgrid = gdal.GetDriverByName('GTiff').Create(
             path, abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
         self._CEgrid.SetProjection(proj.ExportToWkt())
-        self._CEgrid.SetGeoTransform((xmin, self._dx, 0, ymin, 0, self._dy))
+        # self._CEgrid.SetProjection(ref_raster.GetProjection())
+        geo_transform = (xmin, self._dx, 0.0, ymax, 0.0, -self._dy)
+        self._CEgrid.SetGeoTransform(geo_transform)
+        # band.FlushCache()
         band = self._CEgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
-        band.FlushCache()
         gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=[
                             "ATTRIBUTE=newCEid"])
+        band = self._CEgrid.GetRasterBand(1)
         data_array = band.ReadAsArray()
         return data_array
 
@@ -700,8 +703,8 @@ class Basin:
         xmin, xmax, ymin, ymax = lyr_CE.GetExtent()
         # Get the resolution to the new raster
         scale = 30
-        x_res = int((xmax-xmin)/self._dx)*scale
-        y_res = int((ymax-ymin)/self._dy)*scale
+        x_res = ceil((xmax-xmin)/self._dx)*scale
+        y_res = ceil((ymax-ymin)/self._dy)*scale
         # Make the Union between the two shps
         path = os.path.join(self._project_path, "geographic", "CPgrid.tif")
         self._CPgrid = gdal.GetDriverByName('GTiff').Create(
