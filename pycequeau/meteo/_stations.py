@@ -87,8 +87,8 @@ def interpolation_netCDF(ds: xr.Dataset,
     lat_max_idx = u.find_nearest(ds["lat"].values, table["lat"].max())
     lat_min_idx = u.find_nearest(ds["lat"].values, table["lat"].min())
     # Slice the dataset
-    ds = ds.isel(lat=slice(lat_min_idx-1, lat_max_idx),
-                 lon=slice(lon_min_idx, lon_max_idx+1))
+    ds = ds.isel(lat=slice(min(lat_min_idx, lat_max_idx)-1, max(lat_min_idx, lat_max_idx)),
+                 lon=slice(min(lon_min_idx, lon_max_idx), max(lon_min_idx, lon_max_idx)+1))
     # Create reference regridder
     x = np.linspace(min(i), max(i), len(ds["lon"].values))
     y = np.linspace(min(j), max(j), len(ds["lat"].values))

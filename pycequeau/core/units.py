@@ -29,7 +29,7 @@ def units_CORDEX(ds: xr.Dataset):
                                   long_name="Cloud cover")
         ds[var_name].values = ds[var_name].values/100
         ds = ds.rename({var_name: "nebulosite"})
-        
+
     if var_name == "vp":
         # from kPa to mmHg 7.50062
         # ds[var_name] = ds[var_name].transpose("time","lat","lon")
@@ -58,13 +58,13 @@ def units_CORDEX(ds: xr.Dataset):
 def units_ERA(ds: xr.Dataset):
     # List the variable names
     var_name = list(ds.keys())[0]
-    if var_name == "tp":
+    if var_name == "ptot":
         # from m d-1 to mm d-1
         ds[var_name].attrs = dict(units="mm d-1",
                                   long_name="Total precipitation")
         ds[var_name].values = 1e3*ds[var_name].values
         ds = ds.rename({var_name: "pTot"})
-    if var_name == "ssr":
+    if var_name == "sol_rad":
         # from W m-2 to MJ m2 d-1
         ds[var_name].attrs = dict(units="MJ m-2 d-1",
                                   long_name="Surface solar radiation")
@@ -84,11 +84,11 @@ def units_ERA(ds: xr.Dataset):
         # from kPa to mmHg 7.50062
         ds[var_name].attrs = dict(units="mmHg",
                                   long_name="Vapor pressure")
-        ds[var_name].values = 7.50062e-3*ds[var_name].values
+        # ds[var_name].values = 7.50062e-3*ds[var_name].values
         ds = ds.rename({var_name: "pression"})
-    if var_name == "tmax" or var_name == "tmin":
+    if var_name == "t2m_min" or var_name == "t2m_max":
         # from K to degC
-        if var_name == "tmax":
+        if var_name == "t2m_max":
             long_name = "Maximum daily air temperature"
             ds = ds.rename({var_name: "tMax"})
             var_name = "tMax"

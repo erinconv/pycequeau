@@ -74,8 +74,16 @@ class Basin:
             self._project_path, "geographic", file_list[6])
 
     def set_dimenssions(self, dx: float, dy: float):
-        self._dx = dx
-        self._dy = dy
+        ref_dataset = gdal.Open(self._DEM, gdal.GA_ReadOnly)
+        transform = ref_dataset.GetGeoTransform()
+        pixelWidth = transform[1]
+        pixelHeight = -transform[5]
+        # Get the number of rows and cols
+        self.n_cols = abs(floor(dx/pixelWidth))
+        self.n_rows = abs(floor(dy/pixelHeight))
+        # Fix the position of the fisnet to match each pixel position
+        self._dx = self.n_cols*pixelWidth
+        self._dy = self.n_rows*pixelHeight
 
     def get_dimenssions(self):
         return [self._dx, self._dy]
@@ -204,6 +212,20 @@ class Basin:
                 lyr2.DeleteFeature(feat2.GetFID())
 
     @classmethod
+    def clip_shps(cls,
+                  sub_basins: str,
+                  watershed: str,
+                  newSubBasins: str):
+        gdf1 = gpd.read_file(sub_basins)
+        gdf2 = gpd.read_file(watershed)
+        new_gdf = gpd.clip(gdf1, gdf2)
+        # find and drop allpoints geometry if they exist
+        new_gdf = new_gdf.where(new_gdf.geometry.geom_type != "Point")
+        new_gdf = new_gdf.dropna()
+        # Save the resulting GeoDataFrame as a shapefile
+        new_gdf.to_file(newSubBasins)
+
+    @classmethod
     def join_shps(cls,
                   CEfishnet: str,
                   SubBasins: str,
@@ -228,7 +250,13 @@ class Basin:
         # Check if the file already exist
         if os.path.exists(self._CPfishnet):
             os.remove(self._CPfishnet)
-
+        # Clip the sub basins with the watershed file
+        self._newSubBasins = os.path.join(
+            self._project_path, "geographic", "sub_basins.shp")
+        self.clip_shps(self._SubBasins,
+                       self._Basin,
+                       self._newSubBasins)
+        self._SubBasins = self._newSubBasins
         self.join_shps(self._CEfishnet,
                        self._SubBasins,
                        self._CPfishnet)
@@ -285,7 +313,9 @@ class Basin:
                                                     CEfishnet,
                                                     self._FAC,
                                                     CP_array,
-                                                    CE_array)
+                                                    CE_array,
+                                                    self.n_cols,
+                                                    self.n_rows)
         # Obtain the downstream CP based on the previous process
         self.rtable = CPfs.get_downstream_CP(self.rtable)
         # self.rtable["newCPid"] = pd.to_numeric(self.rtable["newCPid"])
@@ -415,14 +445,22 @@ class Basin:
         pctForet, pctSolNu = self.get_land_cover(self.CEfishnet,
                                                  self._LC,
                                                  "newCEid")
-        # Get the lakes
-        pctLacRiviere = self.get_water_cover(self._Waterbodies,
+        # Check if there are different files for water bodies
+        if self._Waterbodies == self._Wetlands:
+            # Get the lakes
+            pctLacRiviere = self.get_water_cover(self._Waterbodies,
+                                                 self.CEfishnet,
+                                                 self._DEM, "newCEid")
+            # Get the same value to the marais
+            pctMarais = pctLacRiviere.copy()
+        else:
+            pctLacRiviere = self.get_water_cover(self._Waterbodies,
+                                                 self.CEfishnet,
+                                                 self._DEM, "newCEid")
+            # Get the marshes
+            pctMarais = self.get_water_cover(self._Wetlands,
                                              self.CEfishnet,
                                              self._DEM, "newCEid")
-        # Get the marshes
-        pctMarais = self.get_water_cover(self._Wetlands,
-                                         self.CEfishnet,
-                                         self._DEM, "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
         CE_shp = np.array(pctLacRiviere) + np.array(pctMarais)
         CE_tif = np.array(pctForet) + np.array(pctSolNu)
@@ -485,14 +523,21 @@ class Basin:
         pctForet, pctSolNu = self.get_land_cover(self.CPfishnet,
                                                  self._LC,
                                                  "newCPid")
-        # Get the lakes
-        pctLacRiviere = self.get_water_cover(self._Waterbodies,
+        if self._Waterbodies == self._Wetlands:
+            # Get the lakes
+            pctLacRiviere = self.get_water_cover(self._Waterbodies,
+                                                 self.CPfishnet,
+                                                 self._DEM, "newCPid")
+            pctMarais = pctLacRiviere.copy()
+        else:
+            # Get the lakes
+            pctLacRiviere = self.get_water_cover(self._Waterbodies,
+                                                 self.CPfishnet,
+                                                 self._DEM, "newCPid")
+            # Get the marshes
+            pctMarais = self.get_water_cover(self._Wetlands,
                                              self.CPfishnet,
                                              self._DEM, "newCPid")
-        # Get the marshes
-        pctMarais = self.get_water_cover(self._Wetlands,
-                                         self.CPfishnet,
-                                         self._DEM, "newCPid")
         # Scale the percentages to make sure that they all sum up 100%
         CP_shp = np.array(pctLacRiviere) + np.array(pctMarais)
         CP_tif = np.array(pctForet) + np.array(pctSolNu)
@@ -516,7 +561,7 @@ class Basin:
         # Create the carreauxPartiel dataset
         self.carreauxPartiels = pd.DataFrame(columns=["CPid", "i", "j", "code",
                                                       "pctSurface", "idCPAval", "idCPsAmont",
-                                                      "CEid", "pctEau", "pctForet", "pctMarais",
+                                                      "idCE", "pctEau", "pctForet", "pctMarais",
                                                       "pctSolNu", "altitudeMoy", "profondeurMin",
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
@@ -546,8 +591,8 @@ class Basin:
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
                                                         ])
         # Change the values that must be integer types
-        self.carreauxPartiels["CEid"] = np.array(
-            self.carreauxPartiels["CEid"], dtype=np.int16)
+        self.carreauxPartiels["idCE"] = np.array(
+            self.carreauxPartiels["idCE"], dtype=np.int16)
         self.carreauxPartiels["CPid"] = np.array(
             self.carreauxPartiels["CPid"], dtype=np.int16)
         self.carreauxPartiels["idCPAval"] = np.array(

@@ -14,30 +14,31 @@ from math import ceil
 import itertools
 import matplotlib.pyplot as plt
 
+
 def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
     """
     taken from: 
     https://ml-gis-service.com/index.php/2021/09/24/toolbox-drop-duplicated-geometries-from-geodataframe/
-    
+
     Function drops duplicated geometries from a geoseries. It works as follow:
-    
+
         1. Take record from the dataset. Check it's index against list of indexes-to-skip. If it's not there then move to the next step.
         2. Store record's index in the list of processed indexes (to re-create geoseries without duplicates) and in the list of indexes-to-skip.
         3. Compare this record to all other records. If any of them is a duplicate then store its index in the indexes-to-skip.
         4. If all records are checked then re-create dataframe without duplicates based on the list of processed indexes.
-        
+
     INPUT:
-    
+
     :param geoseries: (gpd.GeoSeries)
-    
+
     OUTPUT:
-    
+
     :returns: (gpd.GeoDataFrame)
     """
-    
+
     indexes_to_skip = []
     processed_indexes = []
-    
+
     for index, geom in geoseries.items():
         if index not in indexes_to_skip:
             processed_indexes.append(index)
@@ -51,13 +52,12 @@ def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
                     else:
                         pass
     output_gs = geoseries[processed_indexes].copy()
-    return indexes_to_skip,processed_indexes
-
+    return indexes_to_skip, processed_indexes
 
 
 def rasterize_shp(grid_shp: str,
-                   ref_name: str,
-                   field: str)-> np.ndarray:
+                  ref_name: str,
+                  field: str) -> np.ndarray:
     # Get raster georeference info
     raster = gdal.Open(ref_name, gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
@@ -68,18 +68,18 @@ def rasterize_shp(grid_shp: str,
     x_res = raster.RasterXSize
     y_res = raster.RasterYSize
     # Get shp info
-    shp = ogr.Open(grid_shp,gdal.GA_ReadOnly)
+    shp = ogr.Open(grid_shp, gdal.GA_ReadOnly)
     lyr = shp.GetLayer()
     proj = lyr.GetSpatialRef()
     xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
-    # grid_raster = gdal.GetDriverByName('GTiff').Create(
-    #     grid_shp.replace(".shp",".tif"), 
-    #     x_res, y_res, 1, gdal.GDT_Int32)
+    grid_raster = gdal.GetDriverByName('GTiff').Create(
+        grid_shp.replace(".shp", ".tif"),
+        x_res, y_res, 1, gdal.GDT_Int32)
     # Create the raster in the memory
-    grid_raster = gdal.GetDriverByName('MEM').Create(
-        '', x_res, y_res, 1, gdal.GDT_Int32)
+    # grid_raster = gdal.GetDriverByName('MEM').Create(
+    #     '', x_res, y_res, 1, gdal.GDT_Int32)
     grid_raster.SetGeoTransform(raster.GetGeoTransform())
     grid_raster.SetProjection(raster.GetProjection())
     band = grid_raster.GetRasterBand(1)
@@ -90,9 +90,10 @@ def rasterize_shp(grid_shp: str,
     data_array = band.ReadAsArray()
     return data_array
 
+
 def rasterize_shp_as_byte(grid_shp: str,
-                   ref_name: str, field: str, 
-                   name: str) -> None:
+                          ref_name: str, field: str,
+                          name: str) -> None:
     # Get raster georeference info
     raster = gdal.Open(ref_name, gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
@@ -103,14 +104,14 @@ def rasterize_shp_as_byte(grid_shp: str,
     x_res = raster.RasterXSize
     y_res = raster.RasterYSize
     # Get shp info
-    shp = ogr.Open(grid_shp,gdal.GA_ReadOnly)
+    shp = ogr.Open(grid_shp, gdal.GA_ReadOnly)
     lyr = shp.GetLayer()
     proj = lyr.GetSpatialRef()
     xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
     # grid_raster = gdal.GetDriverByName('GTiff').Create(
-    #     grid_shp.replace(".shp",".tif"), 
+    #     grid_shp.replace(".shp",".tif"),
     #     x_res, y_res, 1, gdal.GDT_Int32)
     # Create the raster in the memory
     grid_raster = gdal.GetDriverByName('GTiff').Create(
@@ -125,6 +126,7 @@ def rasterize_shp_as_byte(grid_shp: str,
     data_array = band.ReadAsArray()
     return data_array
 
+
 def get_i_j_CEQUEAU_grid(CEgrid: gdal.Dataset):
     pass
 
@@ -132,7 +134,7 @@ def get_i_j_CEQUEAU_grid(CEgrid: gdal.Dataset):
 def get_altitude_point(DEM: gdal.Dataset,
                        lat_utm: np.array,
                        lon_utm: np.array):
-    
+
     xtup, ytup, ptup = GetExtent(DEM)
     # (xmin, xmax), (ymin, ymax), (xpixel, ypixel)
     # xmin, xmax, ymin, ymax, xpixel, ypixel = GetExtent(DEM)
@@ -199,7 +201,7 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
                       raster_name: str,
                       att: str) -> np.ndarray:
     # Get raster georeference info
-    raster = gdal.Open(raster_name,gdal.GA_ReadOnly)
+    raster = gdal.Open(raster_name, gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
     xOrigin = transform[0]
     yOrigin = transform[3]
@@ -251,19 +253,19 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
                                gdf['miny'], 0, pixelHeight,))
 
     # Rasterize the in-memory vector dataset onto the mask array
-    gdal.RasterizeLayer(target_ds, [1], 
+    gdal.RasterizeLayer(target_ds, [1],
                         temp_layer, options=["ATTRIBUTE="+att])
 
     bandmask = target_ds.GetRasterBand(1)
     datamask = bandmask.ReadAsArray()
-    
+
     banddataraster = raster.GetRasterBand(1)
     no_data = raster.GetRasterBand(1).GetNoDataValue()
     # Mask array based on the nondata value
     dataraster = banddataraster.ReadAsArray(
         xoff, yoff, xcount, ycount)
     # masked_dataraster = np.ma.masked_where(dataraster==no_data,dataraster)
-    # Change 
+    # Change
     # np.set_printoptions(threshold=sys.maxsize)
     # print(datamask)
     # print(dataraster)
@@ -272,10 +274,10 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
 
 
 def rasterize_shp2(gdf: gpd.GeoDataFrame,
-                  raster_name: str) -> np.ndarray:
+                   raster_name: str) -> np.ndarray:
     # Get affine transformation matrix from the raster dataset
     # Get raster georeference info
-    raster = gdal.Open(raster_name,gdal.GA_ReadOnly)
+    raster = gdal.Open(raster_name, gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
     xOrigin = transform[0]
     yOrigin = transform[3]
@@ -501,7 +503,7 @@ def falls_in_extent(extent: tuple,
                     x: list,
                     y: list):
     # Extract the extent from the given values
-    y_ext,x_ext = extent
+    y_ext, x_ext = extent
     xy_pairs = np.c_[list(itertools.product(x, y))]
     idx, = np.where((xy_pairs[:, 0] <= np.amin(x_ext)) |
                     (xy_pairs[:, 0] >= np.amax(x_ext)) |
