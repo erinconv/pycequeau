@@ -504,7 +504,8 @@ class Basin:
         self.carreauxEntiers["i"] = self.carreauxEntiers["i"].astype("uint8")
         self.carreauxEntiers["j"] = self.carreauxEntiers["j"].astype("uint8")
         self.CEfishnet.to_file(self._CEfishnet)
-        # self.carreauxEntiers.to_csv("carreauxEntiers.csv")
+        self.carreauxEntiers.to_csv(os.path.join(
+            self._project_path, "results", "carreauxEntiers.csv"))
 
     def carreauxPartiels_struct(self):
         # Start by sorting the values with in the dataframe
@@ -611,7 +612,9 @@ class Basin:
             self.carreauxPartiels["code"], dtype=np.int8)
         self.carreauxPartiels["penteRiviere"] = np.array(
             self.carreauxPartiels["penteRiviere"], dtype=np.float32)
-        self.carreauxPartiels.to_csv("carreauxPartiels.csv")
+
+        self.carreauxPartiels.to_csv(os.path.join(
+            self._project_path, "results", "carreauxPartiels.csv"))
         self.CPfishnet.to_file(self._CPfishnet)
 
     def create_bassinVersant_structure(self):

@@ -7,7 +7,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.validation import make_valid
-from math import ceil
+from math import ceil, floor
 # from pycequeau.meteo.base import MeteoStation
 # from pycequeau.core import projections
 # from pycequeau.physiographic.base import Basin
@@ -213,8 +213,8 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     # xmin, ymin, xmax, ymax = gdf.bounds
 
     # Specify offset and rows and columns to read
-    xoff = ceil((gdf['minx'] - xOrigin)/pixelWidth)
-    yoff = int((yOrigin - gdf['maxy'])/pixelHeight)
+    xoff = floor((gdf['minx'] - xOrigin)/pixelWidth)
+    yoff = floor((yOrigin - gdf['maxy'])/pixelHeight)
     xcount = int((gdf['maxx'] - gdf['minx'])/pixelWidth)
     ycount = int((gdf['maxy'] - gdf['miny'])/pixelHeight)
 
