@@ -6,10 +6,10 @@ import xarray as xr
 import os
 from osgeo import gdal, ogr
 from .base import Meteo
-from pycequeau.core import projections
-from pycequeau.core import manage_files
-from pycequeau.physiographic.base import Basin
-from pycequeau.core import utils as u
+from src.core import projections
+from src.core import manage_files
+from src.physiographic.base import Basin
+from src.core import utils as u
 from ._stations import (
     interpolation_netCDF,
     create_station_table,

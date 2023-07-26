@@ -4,8 +4,8 @@ import numpy as np
 import os
 import json
 import geopandas as gpd
-from pycequeau.physiographic.base import Basin
-from pycequeau.core import projections
+from src.physiographic.base import Basin
+from src.core import projections
 
 
 class Parameters:
@@ -188,7 +188,7 @@ class Parameters:
                             "colarg": values[1],
                             "temperat": temperat
                             }
-                        }
+                            }
         # TODO: In the future, new water temperature models can be added
         # Future model?
         elif model != 1:

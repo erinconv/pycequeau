@@ -4,7 +4,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon
 from osgeo import gdal
 import rasterio as rio
-from pycequeau.core import utils as u
+from src.core import utils as u
 import rasterstats as rs
 from math import ceil, floor
 import itertools

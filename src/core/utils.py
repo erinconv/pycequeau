@@ -8,9 +8,9 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.validation import make_valid
 from math import ceil, floor
-# from pycequeau.meteo.base import MeteoStation
-# from pycequeau.core import projections
-# from pycequeau.physiographic.base import Basin
+# from src.meteo.base import MeteoStation
+# from src.core import projections
+# from src.physiographic.base import Basin
 import itertools
 import matplotlib.pyplot as plt
 

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from pycequeau.core import utils as u
+from src.core import utils as u
 import geopandas as gpd
 from osgeo import gdal
 import os

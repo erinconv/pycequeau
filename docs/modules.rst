@@ -1,7 +1,7 @@
-API
-=========
+src
+===
 
 .. toctree::
    :maxdepth: 4
 
-   pycequeau
+   src

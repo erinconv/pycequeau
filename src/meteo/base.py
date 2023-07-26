@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from pyproj import Proj
-from pycequeau.physiographic.base import Basin
-from pycequeau.core import utils as u
+from src.physiographic.base import Basin
+from src.core import utils as u
 # Base class for the meteo module
 
 
@@ -23,9 +23,9 @@ class Meteo:
 
     @classmethod
     def cequeau_grid(cls, ds: xr.DataArray, basin_struct: Basin) -> xr.Dataset:
-        
+
         grid = cls._cequeau_grid(ds, basin_struct)
-        
+
         return grid
 
     @classmethod

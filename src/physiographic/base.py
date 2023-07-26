@@ -6,11 +6,11 @@ import json
 from math import ceil, floor
 import pandas as pd
 import numpy as np
-from pycequeau.physiographic import carreauxEntiers as CEs
-from pycequeau.physiographic import carreauxPartiels as CPs
-from pycequeau.physiographic import CPfishnet as CPfs
-from pycequeau.core import utils as u
-from pycequeau.core import projections as ceqproj
+from src.physiographic import carreauxEntiers as CEs
+from src.physiographic import carreauxPartiels as CPs
+from src.physiographic import CPfishnet as CPfs
+from src.core import utils as u
+from src.core import projections as ceqproj
 import geopandas as gpd
 import sys
 

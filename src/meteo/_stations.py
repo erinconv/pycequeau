@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from osgeo import gdal, ogr
-from pycequeau.core import projections
-from pycequeau.core import utils as u
+from src.core import projections
+from src.core import utils as u
 
 
 def create_grid_var(ds: xr.Dataset,
