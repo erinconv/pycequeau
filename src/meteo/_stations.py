@@ -126,7 +126,7 @@ def get_netCDF_grids(ds: xr.DataArray,
     Returns:
         np.ndarray: _description_
     """
-    xtup, ytup, ptup = u.GetExtent(CEgrid)
+    xtup, ytup, _ = u.GetExtent(CEgrid)
     epsg_dem = projections.get_proj_code(CEgrid)
     y, x = projections.utm_to_latlon((np.amin(ytup), np.amax(ytup)),
                                      (np.amin(xtup), np.amax(xtup)),
@@ -169,7 +169,7 @@ def create_station_table(CEregrid: gdal.Dataset,
     Returns:
         pd.DataFrame: _description_
     """
-    ce_gri = CEregrid.ReadAsArray()
+    # ce_gri = CEregrid.ReadAsArray()
     i_res = CEregrid.ReadAsArray().shape[1]
     j_res = CEregrid.ReadAsArray().shape[0]
     i = np.linspace(0, i_res, i_res, dtype=int)

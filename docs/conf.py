@@ -45,3 +45,5 @@ intersphinx_mapping = {
 
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
+
+master_doc = 'index'

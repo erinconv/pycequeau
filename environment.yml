@@ -13,3 +13,4 @@ dependencies:
   - geopandas
   - rasterstats
   - netcdf4
+prefix: /home/erinconv/anaconda3/envs/py37

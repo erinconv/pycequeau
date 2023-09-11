@@ -81,31 +81,15 @@ def get_river_geometry(CPfishnet: gpd.GeoDataFrame,
     river_geometry = pd.DataFrame(columns=["profondeurMin", "longueurCoursEauPrincipal",
                                            "largeurCoursEauPrincipal", "penteRiviere"],
                                   index=rtable.index)
-    # Get the cumulated area in the upstream CPS
-    sum_cp_areas = []
-    for i, _ in rtable.iterrows():
-        # Check if the values in the table are read as string
-        if isinstance(rtable.loc[i, "upstreamCPs"], str):
-            CP_list = np.array(
-                eval(rtable.loc[i, "upstreamCPs"]), dtype=np.int16)
-        else:
-            CP_list = np.array(rtable.loc[i, "upstreamCPs"], dtype=np.int16)
-        # Drop zero values
-        CP_list = np.trim_zeros(CP_list)
-        # append the current CP value to sum the area
-        CP_list = np.append(CP_list, i)
-        # Sum the area and convert m2 to km2
-        sum_cp_areas.append(CPfishnet.loc[CP_list, "Area"].sum()*1.0e-6)
-    # Compute the values
     # calculated as function of upstream area (units = cm)
     river_geometry["profondeurMin"] = (
-        0.0198*(np.power(sum_cp_areas, 0.53)))*100.0
+        0.0198*(np.power(CPfishnet["cumulArea"].values, 0.53)))*100.0
     # calculated as function of current CP (units = 1/100 km)
     river_geometry["longueurCoursEauPrincipal"] = np.power(
         CPfishnet["Area"]*1.0e-6, 0.5)*10.0
     # calculated as function of upstream area (units = 1/10m)
     river_geometry["largeurCoursEauPrincipal"] = (
-        0.49*np.power(sum_cp_areas, 0.6))*10.0
+        0.49*np.power(CPfishnet["cumulArea"].values, 0.6))*10.0
     # (units = 1/1000 metres/km)
     river_geometry["penteRiviere"] = 1000.0
 

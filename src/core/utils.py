@@ -1,77 +1,157 @@
 from __future__ import annotations
 import sys
-import numpy as np
-import xarray as xr
-from osgeo import gdal, ogr, osr
-import pandas as pd
+from math import floor
+import itertools
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon
-from shapely.validation import make_valid
-from math import ceil, floor
+import pandas as pd
+from osgeo import gdal, ogr, osr
+import numpy as np
+from shapely.geometry import Polygon
+from shapely.validation import make_valid, explain_validity
+from src.core import projections
+# from shapely.validation import make_valid, explain_validity
+# import xarray as xr
+# MultiPolygon
+# import matplotlib.pyplot as plt
 # from src.meteo.base import MeteoStation
 # from src.core import projections
 # from src.physiographic.base import Basin
-import itertools
-import matplotlib.pyplot as plt
+# import rasterio
+# from rasterio.features import shapes
 
 
-def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
+# def polygonize_raster(raster_name: str):
+#     # https://gis.stackexchange.com/questions/187877/how-to-polygonize-raster-to-shapely-polygons
+#     # Polygonize both rasters and change the path name to the shp
+#     mask = None
+#     with rasterio.Env():
+#         with rasterio.open(raster_name) as src:
+#             image = src.read(1)  # first band
+#             results = (
+#                 {'properties': {'raster_val': v}, 'geometry': s}
+#                 for i, (s, v) in enumerate(shapes(image, mask=mask, transform=src.transform)))
+#     geoms = list(results)
+#     # Convert the list into a gpd
+#     gdf = gpd.GeoDataFrame.from_features(geoms)
+#     # Open the tif file to get the epsg
+#     raster_ref = gdal.Open(raster_name, gdal.GA_ReadOnly)
+#     epsg = projections.get_proj_code(raster_ref)
+#     gdf = gdf.set_crs(epsg)
+#     gdf['validity'] = gdf.apply(
+#         lambda row: explain_validity(row.geometry), axis=1)
+#     gdf.geometry = gdf.apply(
+#         lambda row: make_valid(row.geometry), axis=1)
+    # print(gdf)
+    # gdf.geometry.make_valid()
+    # print(make_valid(gdf["geometry"]))
+    # gdf.geometry = make_valid(gdf.geometry)
+    # return gdf
+    # gdf.to_file(raster_name.replace("tif","shp"))
+    # print(gpd_d)
+    # self._Basin = self._Basin.replace(".tif", ".shp")
+    # self._SubBasins = self._SubBasins.replace(".tif", ".shp")
+    # gpd_d.to_file(self._Basin)
+def polygonize_raster(raster_name: str):
+    """_summary_
+
+    Args:
+        raster_name (str): _description_
     """
-    taken from: 
-    https://ml-gis-service.com/index.php/2021/09/24/toolbox-drop-duplicated-geometries-from-geodataframe/
+    # Open the file
+    src_ds = gdal.Open(raster_name)
+    # Define shp file attributes
+    srcband = src_ds.GetRasterBand(1)
+    dst_layername = 'polygonized'
+    drv = ogr.GetDriverByName("ESRI Shapefile")
+    # Set the export name
+    dst_ds = drv.CreateDataSource(raster_name.replace(".tif",".shp"))
+    # Define the spatial reference based on the TIF attributes
+    sp_ref = osr.SpatialReference()
+    epsg = projections.get_proj_code(src_ds)
+    sp_ref.SetFromUserInput(epsg)
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs = sp_ref )
+    # Rasterize the object
+    fld = ogr.FieldDefn("raster_val", ogr.OFTInteger)
+    dst_layer.CreateField(fld)
+    dst_field = dst_layer.GetLayerDefn().GetFieldIndex("raster_val")
+    gdal.Polygonize( srcband, None, dst_layer, dst_field, [], callback=None )
 
-    Function drops duplicated geometries from a geoseries. It works as follow:
+def fix_geometry(gdf: gpd.GeoDataFrame)->gpd.GeoDataFrame:
+    """_summary_
+    https://gis.stackexchange.com/questions/430384/using-shapely-methods-explain-validity-and-make-valid-on-shapefile
+    Args:
+        gdf (gpd.GeoDataFrame): _description_
 
-        1. Take record from the dataset. Check it's index against list of indexes-to-skip. If it's not there then move to the next step.
-        2. Store record's index in the list of processed indexes (to re-create geoseries without duplicates) and in the list of indexes-to-skip.
-        3. Compare this record to all other records. If any of them is a duplicate then store its index in the indexes-to-skip.
-        4. If all records are checked then re-create dataframe without duplicates based on the list of processed indexes.
-
-    INPUT:
-
-    :param geoseries: (gpd.GeoSeries)
-
-    OUTPUT:
-
-    :returns: (gpd.GeoDataFrame)
+    Returns:
+        gpd.GeoDataFrame: _description_
     """
+    gdf['validity'] = gdf.apply(lambda row: explain_validity(row.geometry), axis=1)
+    gdf.geometry = gdf.apply(lambda row: make_valid(row.geometry) if not row.geometry.is_valid == 'Valid Geometry' else row.geometry, axis=1)
+    return gdf
+# def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
+#     """
+#     taken from: 
+#     https://ml-gis-service.com/index.php/2021/09/24/toolbox-drop-duplicated-geometries-from-geodataframe/
+#     Function drops duplicated geometries from a geoseries. It works as follow:
+#         1. Take record from the dataset. Check it's index against list of indexes-to-skip. If it's not there then move to the next step.
+#         2. Store record's index in the list of processed indexes (to re-create geoseries without duplicates) and in the list of indexes-to-skip.
+#         3. Compare this record to all other records. If any of them is a duplicate then store its index in the indexes-to-skip.
+#         4. If all records are checked then re-create dataframe without duplicates based on the list of processed indexes.
+#     INPUT:
 
-    indexes_to_skip = []
-    processed_indexes = []
+#     :param geoseries: (gpd.GeoSeries)
 
-    for index, geom in geoseries.items():
-        if index not in indexes_to_skip:
-            processed_indexes.append(index)
-            indexes_to_skip.append(index)
-            for other_index, other_geom in geoseries.items():
-                if other_index in indexes_to_skip:
-                    pass
-                else:
-                    if geom.equals(other_geom):
-                        indexes_to_skip.append(other_index)
-                    else:
-                        pass
-    output_gs = geoseries[processed_indexes].copy()
-    return indexes_to_skip, processed_indexes
+#     OUTPUT:
+
+#     :returns: (gpd.GeoDataFrame)
+#     """
+
+#     indexes_to_skip = []
+#     processed_indexes = []
+
+#     for index, geom in geoseries.items():
+#         if index not in indexes_to_skip:
+#             processed_indexes.append(index)
+#             indexes_to_skip.append(index)
+#             for other_index, other_geom in geoseries.items():
+#                 if other_index in indexes_to_skip:
+#                     pass
+#                 else:
+#                     if geom.equals(other_geom):
+#                         indexes_to_skip.append(other_index)
+#                     else:
+#                         pass
+#     output_gs = geoseries[processed_indexes].copy()
+#     return indexes_to_skip, processed_indexes
 
 
 def rasterize_shp(grid_shp: str,
                   ref_name: str,
                   field: str) -> np.ndarray:
+    """_summary_
+
+    Args:
+        grid_shp (str): _description_
+        ref_name (str): _description_
+        field (str): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
     # Get raster georeference info
     raster = gdal.Open(ref_name, gdal.GA_ReadOnly)
-    transform = raster.GetGeoTransform()
-    xOrigin = transform[0]
-    yOrigin = transform[3]
-    pixelWidth = transform[1]
-    pixelHeight = -transform[5]
+    # transform = raster.GetGeoTransform()
+    # xOrigin = transform[0]
+    # yOrigin = transform[3]
+    # pixelWidth = transform[1]
+    # pixelHeight = -transform[5]
     x_res = raster.RasterXSize
     y_res = raster.RasterYSize
-    # Get shp info
     shp = ogr.Open(grid_shp, gdal.GA_ReadOnly)
     lyr = shp.GetLayer()
-    proj = lyr.GetSpatialRef()
-    xmin, xmax, ymin, ymax = lyr.GetExtent()
+    # Get shp info
+    # proj = lyr.GetSpatialRef()
+    # xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
     # grid_raster = gdal.GetDriverByName('GTiff').Create(
@@ -94,20 +174,31 @@ def rasterize_shp(grid_shp: str,
 def rasterize_shp_as_byte(grid_shp: str,
                           ref_name: str, field: str,
                           name: str) -> None:
+    """_summary_
+
+    Args:
+        grid_shp (str): _description_
+        ref_name (str): _description_
+        field (str): _description_
+        name (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Get raster georeference info
     raster = gdal.Open(ref_name, gdal.GA_ReadOnly)
-    transform = raster.GetGeoTransform()
-    xOrigin = transform[0]
-    yOrigin = transform[3]
-    pixelWidth = transform[1]
-    pixelHeight = -transform[5]
+    # transform = raster.GetGeoTransform()
+    # xOrigin = transform[0]
+    # yOrigin = transform[3]
+    # pixelWidth = transform[1]
+    # pixelHeight = -transform[5]
     x_res = raster.RasterXSize
     y_res = raster.RasterYSize
     # Get shp info
     shp = ogr.Open(grid_shp, gdal.GA_ReadOnly)
     lyr = shp.GetLayer()
-    proj = lyr.GetSpatialRef()
-    xmin, xmax, ymin, ymax = lyr.GetExtent()
+    # proj = lyr.GetSpatialRef()
+    # xmin, xmax, ymin, ymax = lyr.GetExtent()
     # Get the resolution to the new raster
     # Create tiff format file
     # grid_raster = gdal.GetDriverByName('GTiff').Create(
@@ -127,14 +218,19 @@ def rasterize_shp_as_byte(grid_shp: str,
     return data_array
 
 
-def get_i_j_CEQUEAU_grid(CEgrid: gdal.Dataset):
-    pass
-
-
 def get_altitude_point(DEM: gdal.Dataset,
                        lat_utm: np.array,
                        lon_utm: np.array):
+    """_summary_
 
+    Args:
+        DEM (gdal.Dataset): _description_
+        lat_utm (np.array): _description_
+        lon_utm (np.array): _description_
+
+    Returns:
+        _type_: _description_
+    """
     xtup, ytup, ptup = GetExtent(DEM)
     # (xmin, xmax), (ymin, ymax), (xpixel, ypixel)
     # xmin, xmax, ymin, ymax, xpixel, ypixel = GetExtent(DEM)
@@ -209,7 +305,7 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     pixelHeight = -transform[5]
     # yOrigin1 = yOrigin + pixelHeight[5] * raster.RasterYSize
     # Get no data value
-    no_data = raster.GetRasterBand(1).GetNoDataValue()
+    # no_data = raster.GetRasterBand(1).GetNoDataValue()
     # xmin, ymin, xmax, ymax = gdf.bounds
 
     # Specify offset and rows and columns to read
@@ -260,7 +356,7 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     datamask = bandmask.ReadAsArray()
 
     banddataraster = raster.GetRasterBand(1)
-    no_data = raster.GetRasterBand(1).GetNoDataValue()
+    # no_data = raster.GetRasterBand(1).GetNoDataValue()
     # Mask array based on the nondata value
     dataraster = banddataraster.ReadAsArray(
         xoff, yoff, xcount, ycount)
@@ -273,198 +369,207 @@ def rasterize_feature(gdf: gpd.GeoDataFrame,
     return datamask*dataraster
 
 
-def rasterize_shp2(gdf: gpd.GeoDataFrame,
-                   raster_name: str) -> np.ndarray:
-    # Get affine transformation matrix from the raster dataset
-    # Get raster georeference info
-    raster = gdal.Open(raster_name, gdal.GA_ReadOnly)
-    transform = raster.GetGeoTransform()
-    xOrigin = transform[0]
-    yOrigin = transform[3]
-    pixelWidth = transform[1]
-    pixelHeight = -transform[5]
-    # Get no data value
-    no_data = raster.GetRasterBand(1).GetNoDataValue()
-    xmin, ymin, xmax, ymax = gdf.geometry.bounds
+# def rasterize_shp2(gdf: gpd.GeoDataFrame,
+#                    raster_name: str) -> np.ndarray:
+#     # Get affine transformation matrix from the raster dataset
+#     # Get raster georeference info
+#     raster = gdal.Open(raster_name, gdal.GA_ReadOnly)
+#     transform = raster.GetGeoTransform()
+#     xOrigin = transform[0]
+#     yOrigin = transform[3]
+#     pixelWidth = transform[1]
+#     pixelHeight = -transform[5]
+#     # Get no data value
+#     # no_data = raster.GetRasterBand(1).GetNoDataValue()
+#     xmin, ymin, xmax, ymax = gdf.geometry.bounds
 
-    # Specify offset and rows and columns to read
-    xoff = ceil((xmin - xOrigin)/pixelWidth)
-    yoff = int((yOrigin - ymax)/pixelHeight)
-    xcount = int((xmax - xmin)/pixelWidth)
-    ycount = int((ymax - ymin)/pixelHeight)
+#     # Specify offset and rows and columns to read
+#     xoff = ceil((xmin - xOrigin)/pixelWidth)
+#     yoff = int((yOrigin - ymax)/pixelHeight)
+#     xcount = int((xmax - xmin)/pixelWidth)
+#     ycount = int((ymax - ymin)/pixelHeight)
 
-    proj = osr.SpatialReference(wkt=raster.GetProjection())
-    # create the spatial reference system, WGS84
-    srs = osr.SpatialReference()
-    epsg = int(proj.GetAttrValue('AUTHORITY', 1))
-    srs.ImportFromEPSG(epsg)
+#     proj = osr.SpatialReference(wkt=raster.GetProjection())
+#     # create the spatial reference system, WGS84
+#     srs = osr.SpatialReference()
+#     epsg = int(proj.GetAttrValue('AUTHORITY', 1))
+#     srs.ImportFromEPSG(epsg)
 
-    # Create an in-memory vector dataset from the GeoDataFrame's geometry column
-    driver = ogr.GetDriverByName('Memory')
+#     # Create an in-memory vector dataset from the GeoDataFrame's geometry column
+#     driver = ogr.GetDriverByName('Memory')
 
-    temp_ds = driver.CreateDataSource('')
-    temp_layer = temp_ds.CreateLayer('temp', srs, ogr.wkbMultiPolygon)
-    feature = ogr.Feature(temp_layer.GetLayerDefn())
-    idField = ogr.FieldDefn("temp", ogr.OFTInteger)
-    temp_layer.CreateField(idField)
-    feature.SetField("temp", 1)
-    # print(feature.GetField("temp"))
-    # Make a geometry, from Shapely object
-    geom = ogr.CreateGeometryFromWkb(gdf['geometry'].wkb)
-    feature.SetGeometry(geom)
-    temp_layer.CreateFeature(feature)
+#     temp_ds = driver.CreateDataSource('')
+#     temp_layer = temp_ds.CreateLayer('temp', srs, ogr.wkbMultiPolygon)
+#     feature = ogr.Feature(temp_layer.GetLayerDefn())
+#     idField = ogr.FieldDefn("temp", ogr.OFTInteger)
+#     temp_layer.CreateField(idField)
+#     feature.SetField("temp", 1)
+#     # print(feature.GetField("temp"))
+#     # Make a geometry, from Shapely object
+#     geom = ogr.CreateGeometryFromWkb(gdf['geometry'].wkb)
+#     feature.SetGeometry(geom)
+#     temp_layer.CreateFeature(feature)
 
-    # Create an in-memory temporal raster
-    target_ds = gdal.GetDriverByName('MEM').Create(
-        '', xcount, ycount, ogr.OFTInteger)
-    target_ds.SetGeoTransform((
-        xmin, pixelWidth, 0,
-        ymax, 0, pixelHeight,
-    ))
+#     # Create an in-memory temporal raster
+#     target_ds = gdal.GetDriverByName('MEM').Create(
+#         '', xcount, ycount, ogr.OFTInteger)
+#     target_ds.SetGeoTransform((
+#         xmin, pixelWidth, 0,
+#         ymax, 0, pixelHeight,
+#     ))
 
-    bandmask = target_ds.GetRasterBand(1)
-    bandmask.SetNoDataValue(0)
-    bandmask.Fill(0)
-    # Create for target raster the same projection as for the value raster
-    raster_srs = osr.SpatialReference()
-    raster_srs.ImportFromWkt(raster.GetProjectionRef())
-    target_ds.SetProjection(raster_srs.ExportToWkt())
+#     bandmask = target_ds.GetRasterBand(1)
+#     bandmask.SetNoDataValue(0)
+#     bandmask.Fill(0)
+#     # Create for target raster the same projection as for the value raster
+#     raster_srs = osr.SpatialReference()
+#     raster_srs.ImportFromWkt(raster.GetProjectionRef())
+#     target_ds.SetProjection(raster_srs.ExportToWkt())
 
-    # Rasterize the in-memory vector dataset onto the mask array
-    gdal.RasterizeLayer(target_ds, [1], temp_layer, options=["ATTRIBUTE=temp"])
+#     # Rasterize the in-memory vector dataset onto the mask array
+#     gdal.RasterizeLayer(target_ds, [1], temp_layer, options=["ATTRIBUTE=temp"])
 
-    bandmask = target_ds.GetRasterBand(1)
-    datamask = bandmask.ReadAsArray()
+#     bandmask = target_ds.GetRasterBand(1)
+#     datamask = bandmask.ReadAsArray()
 
-    banddataraster = raster.GetRasterBand(1)
+#     banddataraster = raster.GetRasterBand(1)
 
-    dataraster = banddataraster.ReadAsArray(
-        xoff, yoff, xcount, ycount)
+#     dataraster = banddataraster.ReadAsArray(
+#         xoff, yoff, xcount, ycount)
 
-    pass
-
-
-def zonal_statistics(feat,
-                     raster: gdal.Dataset,
-                     shp: ogr.DataSource,
-                     field: str):
-    # https://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html#calculate-zonal-statistics
-    # Get raster georeference info
-    transform = raster.GetGeoTransform()
-    xOrigin = transform[0]
-    yOrigin = transform[3]
-    pixelWidth = transform[1]
-    pixelHeight = transform[5]
-    # Get no data value
-    no_data = raster.GetRasterBand(1).GetNoDataValue()
-    burn_value = int(feat.GetField(field))
-    # TODO: Check for projection matching
-    lyr = shp.GetLayer()
-    # Get extent of feat
-    geom = feat.GetGeometryRef()
-    if (geom.GetGeometryName() == 'MULTIPOLYGON'):
-        count = 0
-        pointsX = []
-        pointsY = []
-        for polygon in geom:
-            geomInner = geom.GetGeometryRef(count)
-            ring = geomInner.GetGeometryRef(0)
-            numpoints = ring.GetPointCount()
-            for p in range(numpoints):
-                lon, lat, z = ring.GetPoint(p)
-                pointsX.append(lon)
-                pointsY.append(lat)
-            count += 1
-    elif (geom.GetGeometryName() == 'POLYGON'):
-        ring = geom.GetGeometryRef(0)
-        numpoints = ring.GetPointCount()
-        pointsX = []
-        pointsY = []
-        for p in range(numpoints):
-            lon, lat, z = ring.GetPoint(p)
-            pointsX.append(lon)
-            pointsY.append(lat)
-    else:
-        sys.exit("ERROR: Geometry needs to be either Polygon or Multipolygon")
-
-    xmin = min(pointsX)
-    xmax = max(pointsX)
-    ymin = min(pointsY)
-    ymax = max(pointsY)
-
-    # Specify offset and rows and columns to read
-    xoff = ceil((xmin - xOrigin)/pixelWidth)
-    yoff = int((yOrigin - ymax)/pixelWidth)
-    xcount = int((xmax - xmin)/pixelWidth)
-    ycount = int((ymax - ymin)/pixelWidth)
-
-    # print(lyr.GetExtent())
-    # print(xmin,xmax,ymin,ymax)
-    # print(xoff,yoff,ycount,xcount)
-    # Create memory target raster
-    # GTiff
-    target_ds = gdal.GetDriverByName('MEM').Create(
-        '', xcount, ycount, gdal.GDT_Int16)
-    target_ds.SetGeoTransform((
-        xmin, pixelWidth, 0,
-        ymax, 0, pixelHeight,
-    ))
-    bandmask = target_ds.GetRasterBand(1)
-    bandmask.SetNoDataValue(0)
-    bandmask.Fill(0)
-    # Create for target raster the same projection as for the value raster
-    raster_srs = osr.SpatialReference()
-    raster_srs.ImportFromWkt(raster.GetProjectionRef())
-    target_ds.SetProjection(raster_srs.ExportToWkt())
-    # bandmask = target_ds.GetRasterBand(1)
-    # Rasterize zone polygon to raster
-    # query = field + " = '" + str(burn_value) +"'"
-    query = "INTERSECTS(geometry, POLYGON((%s %s, %s %s, %s %s, %s %s, %s %s)))" % \
-        (xmin, ymin, xmax, ymin, xmax, ymax, xmin, ymax, xmin, ymin)
-    # Rasterize the shapefile with a value of 1 for all pixels inside the selected polygons
-    gdal.RasterizeLayer(target_ds, [1], lyr, options=[
-                        'WHERE="%s"' % query], burn_values=[1])
-    # print(shp)
-    # gdal.RasterizeLayer(target_ds, [1], lyr, burn_values=[1])
-    # Read raster as arrays
-    banddataraster = raster.GetRasterBand(1)
-
-    dataraster = banddataraster.ReadAsArray(
-        xoff, yoff, xcount, ycount)
-    # bandmask = target_ds.GetRasterBand(1)
-    datamask = bandmask.ReadAsArray()
-    print(datamask)
-    zoneraster = np.ma.masked_array(
-        dataraster,  np.logical_not(datamask))
-    # print(dataraster)
-    # row, col = centroid_index(feat, target_ds)
-    # if zoneraster[abs(row), abs(col)] == 0:
-    #     return 0
-    # else:
-    #     # Calculate statistics of zonal raster
-    #     return zoneraster[abs(row), abs(col)]
-    # np.mean(zoneraster), np.median(zoneraster), np.std(zoneraster), np.var(zoneraster)
-    return zoneraster
+#     pass
 
 
-def centroid_index(feat, raster: gdal.Dataset):
-    transform = raster.GetGeoTransform()
-    xOrigin = transform[0]
-    yOrigin = transform[3]
-    pixelWidth = transform[1]
-    pixelHeight = transform[5]
-    # Get the centroid
-    geom_poly = feat.GetGeometryRef()
-    centroid = geom_poly.Centroid()
-    point = centroid.GetPoint(0)
-    col = int((point[0] - xOrigin) / pixelWidth)
-    row = int((yOrigin - point[1]) / pixelHeight)
-    return row, col
+# def zonal_statistics(feat,
+#                      raster: gdal.Dataset,
+#                      shp: ogr.DataSource,
+#                      field: str):
+#     # https://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html#calculate-zonal-statistics
+#     # Get raster georeference info
+#     transform = raster.GetGeoTransform()
+#     xOrigin = transform[0]
+#     yOrigin = transform[3]
+#     pixelWidth = transform[1]
+#     pixelHeight = transform[5]
+#     # Get no data value
+#     no_data = raster.GetRasterBand(1).GetNoDataValue()
+#     burn_value = int(feat.GetField(field))
+#     lyr = shp.GetLayer()
+#     # Get extent of feat
+#     geom = feat.GetGeometryRef()
+#     if (geom.GetGeometryName() == 'MULTIPOLYGON'):
+#         count = 0
+#         pointsX = []
+#         pointsY = []
+#         for polygon in geom:
+#             geomInner = geom.GetGeometryRef(count)
+#             ring = geomInner.GetGeometryRef(0)
+#             numpoints = ring.GetPointCount()
+#             for p in range(numpoints):
+#                 lon, lat, z = ring.GetPoint(p)
+#                 pointsX.append(lon)
+#                 pointsY.append(lat)
+#             count += 1
+#     elif (geom.GetGeometryName() == 'POLYGON'):
+#         ring = geom.GetGeometryRef(0)
+#         numpoints = ring.GetPointCount()
+#         pointsX = []
+#         pointsY = []
+#         for p in range(numpoints):
+#             lon, lat, z = ring.GetPoint(p)
+#             pointsX.append(lon)
+#             pointsY.append(lat)
+#     else:
+#         sys.exit("ERROR: Geometry needs to be either Polygon or Multipolygon")
+
+#     xmin = min(pointsX)
+#     xmax = max(pointsX)
+#     ymin = min(pointsY)
+#     ymax = max(pointsY)
+
+#     # Specify offset and rows and columns to read
+#     xoff = ceil((xmin - xOrigin)/pixelWidth)
+#     yoff = int((yOrigin - ymax)/pixelWidth)
+#     xcount = int((xmax - xmin)/pixelWidth)
+#     ycount = int((ymax - ymin)/pixelWidth)
+
+#     # print(lyr.GetExtent())
+#     # print(xmin,xmax,ymin,ymax)
+#     # print(xoff,yoff,ycount,xcount)
+#     # Create memory target raster
+#     # GTiff
+#     target_ds = gdal.GetDriverByName('MEM').Create(
+#         '', xcount, ycount, gdal.GDT_Int16)
+#     target_ds.SetGeoTransform((
+#         xmin, pixelWidth, 0,
+#         ymax, 0, pixelHeight,
+#     ))
+#     bandmask = target_ds.GetRasterBand(1)
+#     bandmask.SetNoDataValue(0)
+#     bandmask.Fill(0)
+#     # Create for target raster the same projection as for the value raster
+#     raster_srs = osr.SpatialReference()
+#     raster_srs.ImportFromWkt(raster.GetProjectionRef())
+#     target_ds.SetProjection(raster_srs.ExportToWkt())
+#     # bandmask = target_ds.GetRasterBand(1)
+#     # Rasterize zone polygon to raster
+#     # query = field + " = '" + str(burn_value) +"'"
+#     query = "INTERSECTS(geometry, POLYGON((%s %s, %s %s, %s %s, %s %s, %s %s)))" % \
+#         (xmin, ymin, xmax, ymin, xmax, ymax, xmin, ymax, xmin, ymin)
+#     # Rasterize the shapefile with a value of 1 for all pixels inside the selected polygons
+#     gdal.RasterizeLayer(target_ds, [1], lyr, options=[
+#                         'WHERE="%s"' % query], burn_values=[1])
+#     # print(shp)
+#     # gdal.RasterizeLayer(target_ds, [1], lyr, burn_values=[1])
+#     # Read raster as arrays
+#     banddataraster = raster.GetRasterBand(1)
+
+#     dataraster = banddataraster.ReadAsArray(
+#         xoff, yoff, xcount, ycount)
+#     # bandmask = target_ds.GetRasterBand(1)
+#     datamask = bandmask.ReadAsArray()
+#     print(datamask)
+#     zoneraster = np.ma.masked_array(
+#         dataraster,  np.logical_not(datamask))
+#     # print(dataraster)
+#     # row, col = centroid_index(feat, target_ds)
+#     # if zoneraster[abs(row), abs(col)] == 0:
+#     #     return 0
+#     # else:
+#     #     # Calculate statistics of zonal raster
+#     #     return zoneraster[abs(row), abs(col)]
+#     # np.mean(zoneraster), np.median(zoneraster), np.std(zoneraster), np.var(zoneraster)
+#     return zoneraster
+
+
+# def centroid_index(feat, raster: gdal.Dataset):
+#     transform = raster.GetGeoTransform()
+#     xOrigin = transform[0]
+#     yOrigin = transform[3]
+#     pixelWidth = transform[1]
+#     pixelHeight = transform[5]
+#     # Get the centroid
+#     geom_poly = feat.GetGeometryRef()
+#     centroid = geom_poly.Centroid()
+#     point = centroid.GetPoint(0)
+#     col = int((point[0] - xOrigin) / pixelWidth)
+#     row = int((yOrigin - point[1]) / pixelHeight)
+#     return row, col
 
 
 def get_index_list(raster: gdal.Dataset,
-                   x: np.array,
-                   y: np.array):
+                   x: np.ndarray,
+                   y: np.ndarray) -> tuple:
+    """_summary_
+
+    Args:
+        raster (gdal.Dataset): _description_
+        x (np.ndarray): _description_
+        y (np.ndarray): _description_
+
+    Returns:
+        tuple: _description_
+    """
     transform = raster.GetGeoTransform()
     xOrigin = transform[0]
     yOrigin = transform[3]
@@ -481,27 +586,36 @@ def get_index_list(raster: gdal.Dataset,
     return row, col
 
 
-def loop_zonal_stats(raster: gdal.Dataset,
-                     shp: ogr.DataSource):
-    lyr = shp.GetLayer()
-    featList = range(lyr.GetFeatureCount())
-    statDict = {}
-    # TODO: Check if feature already exist
-    # idField = ogr.FieldDefn("newid", ogr.OFTInteger)
-    # lyr.CreateField(idField)
-    for i, FID in enumerate(featList):
-        feat = lyr.GetFeature(FID)
+# def loop_zonal_stats(raster: gdal.Dataset,
+#                      shp: ogr.DataSource):
+#     lyr = shp.GetLayer()
+#     featList = range(lyr.GetFeatureCount())
+#     statDict = {}
+#     # idField = ogr.FieldDefn("newid", ogr.OFTInteger)
+#     # lyr.CreateField(idField)
+#     for i, FID in enumerate(featList):
+#         feat = lyr.GetFeature(FID)
 
-        # Get extent of feat
-        CEval = zonal_statistics(feat, raster, shp)
-        feat.SetField("newid", int(CEval))
-        lyr.SetFeature(feat)
-    return statDict
+#         # Get extent of feat
+#         CEval = zonal_statistics(feat, raster, shp)
+#         feat.SetField("newid", int(CEval))
+#         lyr.SetFeature(feat)
+#     return statDict
 
 
 def falls_in_extent(extent: tuple,
                     x: list,
-                    y: list):
+                    y: list) -> np.ndarray:
+    """_summary_
+
+    Args:
+        extent (tuple): _description_
+        x (list): _description_
+        y (list): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
     # Extract the extent from the given values
     y_ext, x_ext = extent
     xy_pairs = np.c_[list(itertools.product(x, y))]
@@ -513,14 +627,23 @@ def falls_in_extent(extent: tuple,
     return xy_pairs[~np.isnan(xy_pairs).any(axis=1), :]
 
 
-def remap_CEgrid(CEgrid: gdal.Dataset,
-                 fishnet: ogr.DataSource):
-    array = CEgrid.ReadAsArray()
-    dx, dy = np.where(array == 699)
-    pass
+# def remap_CEgrid(CEgrid: gdal.Dataset,
+#                  fishnet: ogr.DataSource):
+#     array = CEgrid.ReadAsArray()
+#     dx, dy = np.where(array == 699)
+#     pass
 
 
-def find_nearest(array: np.ndarray, value: float):
+def find_nearest(array: np.ndarray, value: float) -> np.ndarray:
+    """_summary_
+
+    Args:
+        array (np.ndarray): _description_
+        value (float): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
     # https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
     # array = np.asarray(array)
     # idx = (np.abs(array - value)).argmin()
@@ -528,6 +651,14 @@ def find_nearest(array: np.ndarray, value: float):
 
 
 def convert_multi_to_poly(geometry: ogr.Geometry) -> ogr.Geometry:
+    """_summary_
+
+    Args:
+        geometry (ogr.Geometry): _description_
+
+    Returns:
+        ogr.Geometry: _description_
+    """
     # Convert the Multipolygon to a Polygon
     # if geometry.GetGeometryCount() == 1:
     #     polygon = geometry.GetGeometryRef(0)
