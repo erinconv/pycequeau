@@ -122,19 +122,26 @@ def identify_small_CPs(CE_fishnet: gpd.GeoDataFrame,
 def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
                       CP_fishnet: gpd.GeoDataFrame,
                       FAC: str) -> list:
-    # Get the area of the CE grid
-    CE_area = CE_fishnet.area[0]
-    # Add the bounds for each polygon
+    """_summary_
 
-    bounds = CE_fishnet["geometry"].bounds
-    CE_fishnet = pd.concat([CE_fishnet, bounds], axis=1)
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        FAC (str): _description_
+
+    Returns:
+        list: _description_
+    """
+    # Get the bounds
+    # bounds = CE_fishnet["geometry"].bounds
+    # CE_fishnet = pd.concat([CE_fishnet, bounds], axis=1)
     # FAC_dataset = gdal.Open(FAC)
     # CE_fishnet = convert_coords_to_index(CE_fishnet, FAC_dataset)
 
     CP_fishnet = pd.concat([CP_fishnet, pd.DataFrame(columns=["maxFAC"],
                                                      index=CP_fishnet.index)], axis=1)
     columnsCP = CP_fishnet.columns.tolist()
-    for index, CE in CE_fishnet.iterrows():
+    for _, CE in CE_fishnet.iterrows():
         # Get the index for all the subbasin features
         idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
         # Get all features inside the CE
@@ -150,34 +157,26 @@ def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
         CE_features = CP_fishnet.iloc[idx]
         # Find neighbors
         CE_features = find_neighbors(CE_features, "CPid")
-        # print(CE_features)
         for i, CP in CE_features.iterrows():
             # Take only the CP labeled with dissolve
-            # Here I delete the Isolated CP in the border
-            if CP["maxFAC"] is None:
-                CP_fishnet.at[i, "CPid"] = 0.0
-                CP_fishnet.at[i, "Dissolve"] = 0
-                CP_fishnet.at[i, "CEid"] = 0
-            # Delete the CP less than 400 m2. DEM 20x20
-            if CP["maxFAC"] is None and CP["Area"] <= 400:
-                CP_fishnet.at[i, "CPid"] = 0.0
-                CP_fishnet.at[i, "Dissolve"] = 0
-                CP_fishnet.at[i, "CEid"] = 0
-            # Check if any of the neighbors has none maxFAC
-            # if isinstance(CE_features.loc[CP["NEIGHBORS"], "maxFAC"],list):
-            # Here we check if the true value was taken from a list object
-            if CE_features.loc[CP["NEIGHBORS"], "maxFAC"].isnull().values.any() and CP["Dissolve"] == 1:
-                CP_fishnet.at[i, "CPid"] = 0.0
-                CP_fishnet.at[i, "Dissolve"] = 0
-                CP_fishnet.at[i, "CEid"] = 0
-            # else:
-            #     if CE_features.loc[CP["NEIGHBORS"], "maxFAC"] is None and CP["Dissolve"] == 1:
-            #         CP_fishnet.at[i, "CPid"] = 0.0
-            #         CP_fishnet.at[i, "Dissolve"] = 0
-            #         CP_fishnet.at[i, "CEid"] = 0
-            # Get the maximum index value of the neigbourhs in the subset
-            # idx_max = CE_features["maxFAC"][CP["NEIGHBORS"]].isnull().values.any()
-
+            if CP["Dissolve"]:
+                # Here I delete the Isolated CP in the border
+                if CP["maxFAC"] is None:
+                    CP_fishnet.at[i, "CPid"] = 0.0
+                    CP_fishnet.at[i, "Dissolve"] = 0
+                    CP_fishnet.at[i, "CEid"] = 0
+                # Delete the CP less than 400 m2. DEM 20x20
+                if CP["maxFAC"] is None and CP["Area"] <= 400:
+                    CP_fishnet.at[i, "CPid"] = 0.0
+                    CP_fishnet.at[i, "Dissolve"] = 0
+                    CP_fishnet.at[i, "CEid"] = 0
+                # Check if there are no neighbors
+                if not CP["NEIGHBORS"]:
+                    CP_fishnet.at[i, "CPid"] = 0.0
+                    CP_fishnet.at[i, "maxFAC"] = None
+                    CP_fishnet.at[i, "Dissolve"] = 0
+    # Drop the dissolved values in this iterations
+    CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
     CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
     # Save file
     # CP_fishnet.index = range(len(CP_fishnet))
@@ -189,281 +188,175 @@ def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
 
 
 def remove_smallCP(CE_fishnet: gpd.GeoDataFrame,
-                   CP_fishnet: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+                   CP_fishnet: gpd.GeoDataFrame,
+                   thereshold: float) -> gpd.GeoDataFrame:
+    """_summary_
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        thereshold (float): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
     CP_fishnet.index = CP_fishnet["CPid"].values
-
-    for index, CE in CE_fishnet.iterrows():
-        # Get the index for all the subbasin features
-        idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
-        # Get all features inside the CE
-        CE_features = CP_fishnet.iloc[idx]
-        CE_features = find_neighbors(CE_features, "CPid")
-        for i, CP in CE_features.iterrows():
-            # Do not ehck the already labaled CPs
-            if CP["CPid"] == 0:
+    CE_area = CE_fishnet.area[0]
+    mask_CP = CP_fishnet["Area"] < thereshold*CE_area
+    CP_fishnet["Dissolve"] = 0
+    CP_fishnet.loc[mask_CP, "Dissolve"] = 1
+    count = 0
+    while CP_fishnet["Dissolve"].max() == 1:
+        dissolve_vals = CP_fishnet["Dissolve"].values
+        for _, CE in CE_fishnet.iterrows():
+            # Track the already processed CPs
+            tracked_cps = []
+            # Get the index for all the subbasin features
+            idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
+            # Get all features inside the CE
+            CE_features = CP_fishnet.iloc[idx]
+            # Check if there are not CPs to dissolve to avoid computing the
+            # neighbors and save time
+            if CE_features["Dissolve"].max() == 0:
                 continue
-
-            # Check if need to dissolve
-            if CP["Dissolve"]:
-                # Check if there are no neighbors
-                if not CP["NEIGHBORS"]:
-                    CP_fishnet.at[i, "CPid"] = 0.0
-                    CP_fishnet.at[i, "maxFAC"] = None
-                    CP_fishnet.at[i, "Dissolve"] = 0
-                else:
-                    # There are specific cases for dissolving the CP
-                    # Here those cases are depicte
-                    # Columns in dataframe
-                    # columns = CE_features.columns.tolist()
-                    # Find all the CP to dissolve
-                    # idx_dissolve, = np.where(tuple(CE_features["Dissolve"]==1))
+            CE_features = find_neighbors(CE_features, "CPid")
+            for i, CP in CE_features.iterrows():
+                # Check if the CP was already processed
+                if CP["CPid"] in tracked_cps:
+                    continue
+                # Check if need to dissolve
+                if CP["Dissolve"]:
                     # Get the neighbors and the condition
                     neighbors = CE_features.loc[i, "NEIGHBORS"]
                     dissolve = CE_features.loc[i, "KEEP"]
                     # Check if there are neighbors to dissolve also
                     if True in dissolve:
-                        # Filter by dissole or not dissolve
+                        # Filter by dissolve or not dissolve
                         to_dissolve = list(
                             itertools.compress(neighbors, dissolve))
                         not_dissolve = list(itertools.compress(
                             neighbors, np.logical_not(dissolve)))
-                        # 1- There are only neighbors to dissolve:
-                        if to_dissolve and not not_dissolve:
-                            # idx_max = CE_features.loc[to_dissolve, "maxFAC"].idxmax()
-                            idx_max = CE_features.loc[to_dissolve, "Area"].idxmax(
-                            )
+                        # 1- There are only CPs to dissolve.
+                        if not not_dissolve:
+                            to_dissolve.append(i)
+                            idx_max = CE_features.loc[to_dissolve,
+                                                      "maxFAC"].idxmax()
                             CP_fishnet.at[to_dissolve, "CPid"] = idx_max
-                            CP_fishnet.at[to_dissolve, "Dissolve"] = 0
-                            CE_features.at[to_dissolve, "Dissolve"] = 0
-                            # CE_features.at[to_dissolve, "CPid"] = idx_max
-                            # CE_features = find_neighbors(CE_features, "CPid")
-                        # CE 545 - interesting
+                            # Track this CPs
+                            tracked_cps.extend(to_dissolve)
                         # 2- There are both, neighbors to dissolve and not to
                         elif to_dissolve and not_dissolve:
+                            to_dissolve.append(i)
                             # idx_max = CE_features.loc[not_dissolve, "maxFAC"].idxmax()
-                            idx_max = CE_features.loc[not_dissolve, "Area"].idxmin(
+                            idx_max = CE_features.loc[to_dissolve, "maxFAC"].idxmax(
                             )
-                            CE_features.at[to_dissolve, "Dissolve"] = 0
                             CP_fishnet.at[to_dissolve, "CPid"] = idx_max
-                            CP_fishnet.at[to_dissolve, "Dissolve"] = 0
-                            # CE_features.at[to_dissolve, "CPid"] = idx_max
-                            # CE_features = find_neighbors(CE_features, "CPid")
+                            # Track this CP
+                            tracked_cps.extend(to_dissolve)
                     else:
+                        if not CP["NEIGHBORS"]:
+                            # This means the CPs does not have neighbors
+                            CP_fishnet.at[i, "CPid"] = 0
+                            continue
                         # Here the CPs with no neighbors to dissolve are processed
                         idx_max = CE_features.loc[CP["NEIGHBORS"], "maxFAC"].idxmax(
                         )
                         CP_fishnet.at[i, "CPid"] = idx_max
-                        CP_fishnet.at[i, "CEid"] = CE["CEid"]
-                        CP_fishnet.at[i, "Dissolve"] = 0
 
-    # Save file
-    CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
-    CP_fishnet.index = CP_fishnet.index.rename("index")
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    CP_fishnet.at[:, "Area"] = CP_fishnet.area
+        CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
+        CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
+        # Re-do the dissolve labeling
+        CP_fishnet["Area"] = CP_fishnet.area
+        mask_CP = CP_fishnet["Area"] < thereshold*CE_area
+        CP_fishnet["Dissolve"] = 0
+        CP_fishnet.loc[mask_CP, "Dissolve"] = 1
+        # Save file
+        CP_fishnet.index = CP_fishnet.index.rename("index")
+        CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
+        count += 1
+        # Break the loop if a maximun number of iterations was exeeced
+        if count > 15:
+            break
     return CP_fishnet
 
 
 def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
                     CP_fishnet: gpd.GeoDataFrame,
-                    area_th) -> gpd.GeoDataFrame:
-    # The ressult from the previous process leads to have multipolygon features
-    # We need to  make sure this is going to be well dissolved.
-    # This part drops the CEs where there exist multipolygons in the main dataset
-    # Drop the non data values
-    CP_fishnet = CP_fishnet.drop(index=0)
-    # Explode the values and reassing the index and CP values
+                    pixel_size_area) -> gpd.GeoDataFrame:
+    """
+    The ressult from the previous process might lead to have multipolygon features
+    We need to  make sure this is going to be well dissolved.
+    Also, all the pixel-size features need to be merged with the bigger neighbors
+    in order to avoid errors while computing zonal area in further steps.
+
+    TODO: This solution is temporary. Removing this small pixel does not affect
+    but I still need to come up with a more smooth solution
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        area_th (_type_): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
+    #
     CP_fishnet = CP_fishnet.explode()
+    # mask_pixel_feats = CP_fishnet["Area"] > 2*abs(pixel_size_area)
     CP_fishnet["Area"] = CP_fishnet.area
-    CEarea = CE_fishnet.area.max()
-    mask_CP = CP_fishnet["Area"] < area_th*CEarea
-    CP_fishnet.loc[mask_CP.values, "Dissolve"] = 1
-    CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
-    CP_fishnet.index = CP_fishnet["CPid"].values
-    # Now, identify the leftover CPs that need to be dissolved
-    idx_lefts = np.where(CP_fishnet.loc[:, "Dissolve"] == 1)
-    SubCP_fishnet = CP_fishnet.iloc[idx_lefts]
-    CEsDrop = np.unique(SubCP_fishnet["CEid"].values)
-    SubCP_fishnet = CP_fishnet.loc[CP_fishnet["CEid"].isin(CEsDrop)]
-    # CP_fishnet = CP_fishnet.loc[~CP_fishnet["CEid"].isin(CEsDrop)]
-    # Start looping in the CEs that need to be dissolved
-    for CE in CEsDrop:
-        # Get the index for all the subbasin features
-        idx, = np.where(CP_fishnet["CEid"] == CE)
-        CE_features = CP_fishnet.iloc[idx]
-        # Drop the found values
-        indexes = CP_fishnet.index[idx]
-        CP_fishnet = CP_fishnet.drop(index=indexes)
-        # Replace the index values. Select large values to avoid coinciding with the
-        # CPs already storaged in the main dataset
-        CP_vals = np.random.randint(99999, 999999, len(CE_features), dtype=int)
-        # Compute the features of each CP to find the neighbors
-        CE_features.index = CP_vals
-        CE_features.at[:, "CPid"] = CP_vals
-        CE_features = find_neighbors(CE_features, "CPid")
-        columns = CE_features.columns.tolist()
-        # Find features with an area less than 1000km2. This works for DEMS upto 90m
-        idx_400km, = np.where(CE_features.loc[:, "Area"] <= 9000.0)
-        CP_400km_neighs = CE_features.iloc[idx_400km, columns.index(
-            "NEIGHBORS")].values
-        if len(idx_400km) == 1:
-            # CE_features.iloc[idx_400km,columns.index("CPid")] = CP_400km_neighs[0][0]
-            CE_features.iloc[idx_400km, columns.index("Dissolve")] = 0
-            # Loop to check multi polygons
-            flag_neig = True
-            count = 0
-            # Check if the polygons are dissolved
-            while flag_neig:
-                # NEIGHBORS
-                CE_features.iloc[idx_400km, columns.index(
-                    "CPid")] = CP_400km_neighs[0][count]
-                dissolve = CE_features.dissolve(by="CPid", aggfunc="max")
-                count += 1
-                if "MultiPolygon" not in dissolve.geom_type.values:
-                    flag_neig = False
-                # Check if the counter surpass the list of pixels to be dissolved
-                elif count >= len(CP_400km_neighs[0]):
-                    flag_neig = False
-
-            if 'NEIGHBORS' in CE_features.columns:
-                CE_features = CE_features.drop(columns=["NEIGHBORS", "KEEP"])
-            CP_fishnet = pd.concat(
-                [CP_fishnet, CE_features.iloc[idx_400km, :]], axis=0)
-            # Drop the values
-            CE_features = CE_features.drop(
-                index=CE_features.iloc[idx_400km].index)
-        elif len(idx_400km) > 1:
-            for ind in range(len(idx_400km)):
-                # CE_features.iloc[idx_400km[ind],columns.index("CPid")] = CP_400km_neighs[ind][0]
-                CE_features.iloc[idx_400km[ind], columns.index("Dissolve")] = 0
-                # Loop to check multi polygons
-                flag_neig = True
-                count = 0
-                while flag_neig:
-                    # NEIGHBORS
-                    CE_features.iloc[idx_400km[ind], columns.index(
-                        "CPid")] = CP_400km_neighs[ind][count]
-                    dissolve = CE_features.dissolve(by="CPid", aggfunc="max")
-                    count += 1
-                    if "MultiPolygon" not in dissolve.geom_type.values:
-                        flag_neig = False
-                    # Check if the counter surpass the list of pixels to be dissolved
-                    elif count >= len(CP_400km_neighs[ind]):
-                        flag_neig = False
-
-            # Add only this CPS
-            if 'NEIGHBORS' in CE_features.columns:
-                CE_features = CE_features.drop(columns=["NEIGHBORS", "KEEP"])
-            CP_fishnet = pd.concat(
-                [CP_fishnet, CE_features.iloc[idx_400km[:], :]], axis=0)
-            # Drop the values
-            CE_features = CE_features.drop(
-                index=CE_features.iloc[idx_400km].index)
-        CP_fishnet = pd.concat([CP_fishnet, CE_features], axis=0)
-
-    # Dissolve to make sure everything is restarted
+    # CP_fishnet.loc[~mask_pixel_feats, "CPid"] = 0
+    CP_fishnet = CP_fishnet.drop(
+        CP_fishnet[CP_fishnet["Area"] <= 2*abs(pixel_size_area)].index)
     CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
+    # _Re-do the dissolve labeling
+    CP_fishnet["Area"] = CP_fishnet.area
+    # _Save file
     CP_fishnet.index = CP_fishnet.index.rename("index")
-    # Change the values of the index
-    CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    CP_fishnet = pd.concat([CP_fishnet, CE_features], axis=0)
-    if 'NEIGHBORS' in CP_fishnet.columns:
-        CP_fishnet = CP_fishnet.drop(columns=["NEIGHBORS", "KEEP"])
-    # Update the mask of the already merged values
-    CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    mask_CP = CP_fishnet.loc[:, "Area"] < area_th*CEarea
-    CP_fishnet.loc[mask_CP, "Dissolve"] = 1
-    CP_fishnet.loc[np.logical_not(mask_CP), "Dissolve"] = 0
-    # Treat the left-over cases
-    if CP_fishnet["Dissolve"].any() == 1:
-        idx_CES = np.where(CP_fishnet["Dissolve"] == 1)
-        CEsDrop = np.unique(CP_fishnet.iloc[idx_CES]["CEid"].values)
-        left_overs_CEs = CP_fishnet.loc[CP_fishnet["CEid"].isin(CEsDrop)]
-        CP_fishnet = CP_fishnet.loc[~CP_fishnet["CEid"].isin(CEsDrop)]
-        # Loop
-        for CE in CEsDrop:
-            idx, = np.where(left_overs_CEs["CEid"] == CE)
-            CE_features = left_overs_CEs.iloc[idx]
-            CE_features = find_neighbors(CE_features, "CPid")
-            columns = CE_features.columns.tolist()
-            # Check the cases.
-            unique, counts = np.unique(
-                CE_features.loc[:, "Dissolve"].values, return_counts=True)
-            # 1- There is only one CP left to merge:
-            if counts[0] == 1:
-                # Find the CP to dissolve
-                idx_dissolve, = np.where(
-                    CE_features.loc[:, "Dissolve"].values == 1)
-                # Find the neighbor with the maximum FAC
-                neig_list = CE_features.iloc[idx_dissolve, columns.index(
-                    "NEIGHBORS")].values[0]
-                # It is possible to find pixels that have no neighbors.
-                # Check that case here
-                # if not neig_list:
-                #     # Find index of the islated tiny CP
-                #     idx_main, = np.where(CP_fishnet.loc[:,"CPid"] == CE_features.iloc[0,columns.index("CPid")])
-                #     CP_fishnet = CP_fishnet.drop(index=CP_fishnet.index[idx_main])
-                #     continue
-                # find the index where the
-                idx_FAC = CE_features.loc[neig_list, "maxFAC"].idxmax()
-                # Replace the CP values within the CE
-                CE_features.iloc[idx_dissolve,
-                                 columns.index("CPid")] = idx_FAC.real
-                CE_features.iloc[idx_dissolve, columns.index("Dissolve")] = 0
-                # Merge it with the main dataset
-                if 'NEIGHBORS' in CE_features.columns:
-                    CE_features = CE_features.drop(
-                        columns=["NEIGHBORS", "KEEP"])
-                CP_fishnet = pd.concat([CP_fishnet, CE_features], axis=0)
-            else:
-                # Sort by dissolve or not
-                CE_features = CE_features.sort_values(
-                    by='Dissolve', ascending=False)
-                # Loop into each CP
-                # for idx_CP in range(len(CE_features)):
-                for index, CP in CE_features.iterrows():
-                    # Create an exception here since at each iteration, the dataframe
-                    # is being reduced. Just to make sure it does not crash in run time
-                    try:
-                        CE_features.loc[index, "Dissolve"] == 1
-                    except:
-                        # Continue to jump to te next CP
-                        continue
-                    # Check if this needs to be dissolve
-                    if CE_features.loc[index, "Dissolve"] == 1:
-                        # Check the neigbors cases also
-                        neig_list = CE_features.loc[index, "NEIGHBORS"]
-                        # Only one neigh.
-                        if len(neig_list) == 1:
-                            # Check if this neighboor need to be dissolved also
-                            if CE_features.loc[neig_list, "KEEP"].values:
-                                # Set the two dissolve values to zero
-                                CE_features.loc[index, "Dissolve"] = 0
-                                CE_features.loc[neig_list, "Dissolve"] = 0
-                                # Now merge the two CPs and drop them
-                                CE_features.loc[index, "CPid"] = neig_list[0]
-                                CP_fishnet = pd.concat(
-                                    [CP_fishnet, CE_features.loc[[index]]], axis=0)
-                                CP_fishnet = pd.concat(
-                                    [CP_fishnet, CE_features.loc[neig_list]], axis=0)
-                                # Drop the values
-                                CE_features = CE_features.drop(index=index)
-                                CE_features = CE_features.drop(
-                                    index=CE_features.loc[neig_list].index)
-                    else:
-                        CP_fishnet = pd.concat(
-                            [CP_fishnet, CE_features], axis=0)
-                        continue
-    # Drop the unnecesary columns
-    if 'NEIGHBORS' in CP_fishnet.columns:
-        CP_fishnet = CP_fishnet.drop(columns=["NEIGHBORS", "KEEP"])
-    CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
-    CP_fishnet.index = CP_fishnet.index.rename("index")
-    CP_fishnet.index = range(1, len(CP_fishnet)+1)
     CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
 
+    # Explode the values and reassing the index and CP values
+    # CP_fishnet = CP_fishnet.explode()
+    # CP_fishnet["Area"] = CP_fishnet.area
+    # CEarea = CE_fishnet.area.max()
+    # mask_area = CP_fishnet["Area"] < area_th*CEarea
+    # CP_fishnet.loc[mask_area, "Dissolve"] = 1
+    # CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
+    # CP_fishnet.index = range(1, len(CP_fishnet)+1)
+    # mask_dissolve = CP_fishnet["Dissolve"] == 1
+    # dissolve_cps = CP_fishnet.loc[mask_dissolve, "CPid"].tolist()
+    # # find only the CPs that need to be dissolved
+    # tracked_cps = []
+    # for _, CE in CE_fishnet.iterrows():
+    #     # Track the already processed CPs
+    #     # Get the index for all the subbasin features
+    #     idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
+    #     CE_features = CP_fishnet.iloc[idx]
+    #     if CE_features["Dissolve"].max() == 0:
+    #         continue
+    #     CE_features = find_neighbors(CE_features, "CPid")
+    #     for i, CP in CE_features.iterrows():
+    #         # Check if the CP was already processed
+    #         if CP["CPid"] in tracked_cps:
+    #             continue
+    #         if CP["CPid"] in dissolve_cps:
+    #             tracked_cps.append(CP["CPid"])
+    #             idx_max = CE_features.loc[CP["NEIGHBORS"], "maxFAC"].idxmax()
+    #             CP_fishnet.at[i, "CPid"] = idx_max
+    #             tracked_cps.extend(CP["NEIGHBORS"])
+
+    # CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
+    # CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
+    # # Re-do the dissolve labeling
+    # CP_fishnet["Area"] = CP_fishnet.area
+    # mask_CP = CP_fishnet["Area"] < area_th*CEarea
+    # CP_fishnet["Dissolve"] = 0
+    # CP_fishnet.loc[mask_CP, "Dissolve"] = 1
+    # # Save file
+    # CP_fishnet.index = CP_fishnet.index.rename("index")
+    # CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
+    # CP_fishnet = CP_fishnet.explode()
+    # CP_fishnet["Area"] = CP_fishnet.area
+    # df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     return CP_fishnet
 
 
@@ -476,7 +369,7 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
     CE_area = CE_fishnet.area.max()
     mask_CP = CP_fishnet["Area"] < area_th*CE_area
     CP_fishnet.loc[mask_CP, "Dissolve"] = 1
-    for index, CE in CE_fishnet.iterrows():
+    for _, CE in CE_fishnet.iterrows():
 
         # Get the index for all the subbasin features
         idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
@@ -489,7 +382,7 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
         while len(CE_features) > 4:
             # Find neighbors
             CE_features = find_neighbors(CE_features, "CPid")
-            CE_features.at[:, "Area"] = CE_features.area
+            # CE_features.loc[:, "Area"] = CE_features.area
             columns = CE_features.columns.tolist()
             # Find the smallest CP
             idx_small, = np.where(
@@ -520,7 +413,7 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
 
     # Given that this is the final dissolving step, here I will check for
     # duplicate geometries and drop them all if that's the case
-    CP_fishnet['geometry_str'] = CP_fishnet['geometry'].apply(lambda x: str(x))
+    CP_fishnet['geometry_str'] = CP_fishnet['geometry'].apply(str)
     CP_fishnet = CP_fishnet.explode()
     CP_fishnet['normalized_geometry'] = CP_fishnet['geometry'].apply(
         lambda geom: str(Polygon(geom.exterior.coords)))
@@ -746,15 +639,11 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
     # *area threshold that we defined.
     idx_zero_inCP = routing["inCPid"] == 0
     index_drop = routing.index[idx_zero_inCP]
-    df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
-    # idx_zero_inCP, = np.where(routing["inCPid"] == 0)
     # Find the index in the main dataset
     index_drop = CP_fishnet.index[idx_zero_inCP]
     # Drop this value from the main dataframe
     CP_fishnet = CP_fishnet.drop(index=index_drop)
     routing = routing.drop(index=index_drop)
-    df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
-
     # Create the rouring table here
     rtable = pd.DataFrame(columns=["oldCPid", "newCPid", "upstreamCPs", "oldupstreams"],
                           index=routing.index)
@@ -775,8 +664,6 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
         # Find the upstream CPs
         index_routing = rtable.loc[i, "oldCPid"] == routing["inCPid"]
         idx_outlet = routing.index[index_routing]
-        # print(idx_outlet)
-        # print(rtable.at[i,"oldCPid"],i)
         if not idx_outlet.empty:
             # Find the upstream CPs
             upstreams_cps = routing.loc[idx_outlet, "CPid"].values
@@ -793,11 +680,6 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
             rtable.iloc[i-1, columns.index("oldupstreams")] = upstreams_cps
             new_id_counter += len(idx_outlet)
             routing.loc[idx_outlet, "inCPid"] = -99999
-        # else:
-        #     a = 1
-        #     # routing.loc[idx_outlet, "inCPid"] = -99999
-        #     pass
-        # Set to nan the already tracked CP
 
     # Check if there are CPs to drop
     idx_nan_inCP = rtable["oldCPid"].isnull()
@@ -1002,15 +884,15 @@ def cumulative_areas(CP_fishnet: gpd.GeoDataFrame,
                                                            "pctSurface"].sum()
         # Compute cumul areas in km2
         CP_fishnet.loc[i, "cumulArea"] = CP_fishnet.loc[temp_df,
-                                                           "Area"].sum()*1e-6
+                                                        "Area"].sum()*1e-6
         # CP_fishnet.loc[i, "cumulPctSurf"] = CP_fishnet.iloc[temp_df, 10].sum()
-    
+
     # Now, fix the last upstream CP with the area
     CP_fishnet.loc[i+1, "cumulPctSurf"] = CP_fishnet.loc[i+1,
-                                                           "pctSurface"]
+                                                         "pctSurface"]
     # Compute cumul areas in km2
     CP_fishnet.loc[i+1, "cumulArea"] = CP_fishnet.loc[i+1,
-                                                    "Area"]*1e-6
+                                                      "Area"]*1e-6
     # Convert it into a numpy array
     lists_len = [
         len(i) for i in upstreamCPs if isinstance(i, list)]
@@ -1021,10 +903,10 @@ def cumulative_areas(CP_fishnet: gpd.GeoDataFrame,
         if isinstance(upstreamCPs[i], list):
             list_up = upstreamCPs[i]
             upstreamcps_array[i, 0:len(list_up)] = list_up
-    upstreamcps_array = np.delete(upstreamcps_array,0,0)
-    upstreamcps_array = np.pad(upstreamcps_array, ((0,1), (0,0)))
+    upstreamcps_array = np.delete(upstreamcps_array, 0, 0)
+    upstreamcps_array = np.pad(upstreamcps_array, ((0, 1), (0, 0)))
     # Assign the value to the last entry
-    upstreamcps_array[-1,0] = len(upstreamCPs)
+    upstreamcps_array[-1, 0] = len(upstreamCPs)
     # return allroute_lists_array
     return CP_fishnet, upstreamcps_array
 # Add the data to the routing table

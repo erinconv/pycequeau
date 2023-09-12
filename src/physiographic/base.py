@@ -20,6 +20,7 @@ from src.core import projections as ceqproj
 class Basin:
     """_summary_
     """
+
     def __init__(self,
                  project_folder: str,
                  basin_name: str,
@@ -36,7 +37,7 @@ class Basin:
         self._CPfishnet = os.path.join(
             self._project_path, "geographic", "CP_fishnet.shp")
         # Polygonize and process the raster watershed and subbasins file
-        self.rasterize_maps()  
+        self.rasterize_maps()
         # Check if the bassin versant object is an input file
         if len(args) == 1:
             # Check if the provided file is an an actual json file
@@ -50,13 +51,14 @@ class Basin:
         self.n_rows = []
         self._dx = []
         self._dy = []
-        # self.CPfishnet = [] 
+        self.pixel_width = []
+        self.pixel_height = []
+        # self.CPfishnet = []
         # self.CEfishnet = []
         # self.rtable = []
         # self.outlet_routes = []
         # self._newSubBasins = []
         # self._SubBasins = []
-
 
     def _project_structure(self, file_list: str):
         """_summary_
@@ -97,7 +99,7 @@ class Basin:
         self._SubBasins = self._SubBasins.replace(".tif", ".shp")
         # Open shps as geopandas datasets
         watershed = gpd.read_file(self._Basin)
-        sub_basins  = gpd.read_file(self._SubBasins)
+        sub_basins = gpd.read_file(self._SubBasins)
         # Fix geometry
         watershed = u.fix_geometry(watershed)
         sub_basins = u.fix_geometry(sub_basins)
@@ -113,7 +115,6 @@ class Basin:
         watershed.to_file(self._Basin)
         sub_basins.to_file(self._SubBasins)
 
-
     def set_dimensions(self, dx: float, dy: float):
         """_summary_
 
@@ -123,14 +124,14 @@ class Basin:
         """
         ref_dataset = gdal.Open(self._DEM, gdal.GA_ReadOnly)
         transform = ref_dataset.GetGeoTransform()
-        pixel_width = transform[1]
-        pixel_height = -transform[5]
+        self.pixel_width = transform[1]
+        self.pixel_height = -transform[5]
         # Get the number of rows and cols
-        self.n_cols = abs(floor(dx/pixel_width))
-        self.n_rows = abs(floor(dy/pixel_height))
+        self.n_cols = abs(floor(dx/self.pixel_width))
+        self.n_rows = abs(floor(dy/self.pixel_height))
         # Fix the position of the fisnet to match each pixel position
-        self._dx = self.n_cols*pixel_width
-        self._dy = self.n_rows*pixel_height
+        self._dx = self.n_cols*self.pixel_width
+        self._dy = self.n_rows*self.pixel_height
 
     def get_dimenssions(self):
         return [self._dx, self._dy]
@@ -338,11 +339,17 @@ class Basin:
         CPfishnet = CPfs.identify_small_CPs(CEfishnet, CPfishnet, area_th)
         CPfishnet, CEfishnet = CPfs.remove_border_CPs(
             CEfishnet, CPfishnet, self._FAC)
-        CPfishnet = CPfs.remove_smallCP(CEfishnet, CPfishnet)
-        CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, area_th)
+        CPfishnet = CPfs.remove_smallCP(CEfishnet, CPfishnet, area_th)
+        # TODO: This is a temporary solution to drop all the pixel-size features in the CP fishnet. Needs to be corrected in the future
+        pixel_size_area = self.pixel_height*self.pixel_width
+        # Find the areas this size
+        CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
         CPfishnet = CPfs.force_4CP(CEfishnet, CPfishnet, area_th)
+        # CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
+        df = pd.DataFrame(CPfishnet.drop(columns='geometry'))
         # Save the files with all the CP dissolved
         CPfishnet.to_file(self._CPfishnet)
+        return None
 
     def CP_routing(self):
         """
@@ -350,7 +357,7 @@ class Basin:
         This has the same dimensions as the FAC file
         in order to compare them both to do the routing process
         The CP grid is already processed and well polished
-        """        
+        """
         CP_array = u.rasterize_shp(self._CPfishnet, self._FAC, "CPid")
         CE_array = u.rasterize_shp(self._CEfishnet, self._FAC, "CEid")
         self.CEfishnet = gpd.read_file(self._CEfishnet)
@@ -360,12 +367,12 @@ class Basin:
         # up to the last CP. Here the upstream CP are also identify for each
         # individual CP
         self.rtable, self.CPfishnet = CPfs.routing_table(self.CPfishnet,
-                                                    self.CEfishnet,
-                                                    self._FAC,
-                                                    CP_array,
-                                                    CE_array,
-                                                    self.n_cols,
-                                                    self.n_rows)
+                                                         self.CEfishnet,
+                                                         self._FAC,
+                                                         CP_array,
+                                                         CE_array,
+                                                         self.n_cols,
+                                                         self.n_rows)
         # Renumbering the fishnets
         self.CPfishnet, self.CEfishnet = CPfs.renumber_fishnets(
             self.CPfishnet, self.CEfishnet, self.rtable)
@@ -388,17 +395,19 @@ class Basin:
         # self.outlet_routes = outlet_routes
         # Export the tables as csv into the geographical information
         # Save the outlet routes files to have it on hand
-        outlet_file_name = os.path.join(self._project_path, "results", "outlet_routes.csv")
+        outlet_file_name = os.path.join(
+            self._project_path, "results", "outlet_routes.csv")
         np.savetxt(outlet_file_name,
                    self.outlet_routes,
                    delimiter=",", fmt="%1i")
         # Save the upstream CPs file
-        upstream_cps_name = os.path.join(self._project_path, "results", "upstream_cps.csv")
+        upstream_cps_name = os.path.join(
+            self._project_path, "results", "upstream_cps.csv")
         np.savetxt(upstream_cps_name,
                    upstream_cps,
                    delimiter=",", fmt="%1i")
         # Send the fishnets to the basin object to have it available
-        
+
         # Save the files
         self.CPfishnet['newCPid'] = self.CPfishnet['newCPid'].astype('int')
         self.CPfishnet.to_file(self._CPfishnet)
@@ -570,7 +579,7 @@ class Basin:
         self.carreauxEntiers.to_csv(os.path.join(
             self._project_path, "results", "carreauxEntiers.csv"))
 
-    def carreauxPartiels_struct(self)->None:
+    def carreauxPartiels_struct(self) -> None:
         """_summary_
         """
         # Start by sorting the values with in the dataframe
