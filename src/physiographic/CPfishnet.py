@@ -304,9 +304,9 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet = CP_fishnet.explode()
     # mask_pixel_feats = CP_fishnet["Area"] > 2*abs(pixel_size_area)
     CP_fishnet["Area"] = CP_fishnet.area
-    # CP_fishnet.loc[~mask_pixel_feats, "CPid"] = 0
+    # Drop values less than three pixels size
     CP_fishnet = CP_fishnet.drop(
-        CP_fishnet[CP_fishnet["Area"] <= 2*abs(pixel_size_area)].index)
+        CP_fishnet[CP_fishnet["Area"] <= 3*abs(pixel_size_area)].index)
     CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
     # _Re-do the dissolve labeling
     CP_fishnet["Area"] = CP_fishnet.area
@@ -687,7 +687,7 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
     if len(index_drop) == 0:
         CP_fishnet = CP_fishnet.drop(index=index_drop)
         rtable = rtable.drop(index=index_drop)
-
+    # rtable['newCPid'] = rtable['newCPid'].astype('int')
     # idx = np.where()
     # rtable.index = CP_fishnet.index
     # CP_fishnet = CP_fishnet.join(rtable[["oldCPid"]])
@@ -812,6 +812,7 @@ def outlet_routes(rtable: pd.DataFrame) -> pd.DataFrame:
     columns_rtable = rtable.columns.tolist()
     for i, _ in rtable.iterrows():
         route_list = []
+        count_ups = 0
         # Set the upstream CP to
         up = rtable.loc[i, "newCPid"]
         # Set the number of the upstream CPs to 1
@@ -819,10 +820,16 @@ def outlet_routes(rtable: pd.DataFrame) -> pd.DataFrame:
         while up > 1:
             # append Nth CP to list
             route_list.append(up)
+            up = rtable.loc[up, "downstreamCPs"]
+            count_ups += 1
+            if count_ups >= len(rtable):
+                # TODO: Check what would rise this issue. Although this does not affect the correct functioning of the process
+                route_list = np.unique(route_list)
+                route_list = route_list.tolist()
+                break
             # go down from Nth position until end
             # up = rtable.iloc[up-1, "downstreamCPs"]
             # up = rtable.iloc[up-1, 4]
-            up = rtable.loc[up, "downstreamCPs"]
             # nu -= 1
         route_list.append(1)
         allroute_lists.loc[i, "outletRoutes"] = route_list
@@ -841,13 +848,13 @@ def outlet_routes(rtable: pd.DataFrame) -> pd.DataFrame:
 
 def cumulative_areas(CP_fishnet: gpd.GeoDataFrame,
                      CE_fishnet: gpd.GeoDataFrame,
-                     outlet_routes: np.ndarray) -> pd.DataFrame:
+                     out_routes: np.ndarray) -> pd.DataFrame:
     """_summary_
 
     Args:
         CP_fishnet (gpd.GeoDataFrame): _description_
         CE_fishnet (gpd.GeoDataFrame): _description_
-        outlet_routes (np.ndarray): _description_
+        out_routes (np.ndarray): _description_
 
     Returns:
         pd.DataFrame: _description_
@@ -862,12 +869,12 @@ def cumulative_areas(CP_fishnet: gpd.GeoDataFrame,
     # Cumulative areas
     CP_fishnet["cumulPctSurf"] = 0.0
     upstreamCPs = []
-    for i in range(len(outlet_routes)):
+    for i in range(len(out_routes)):
         if i == 0:
             upstreamCPs.append(0)
             continue
         # Create a copy of the main dataframe
-        temp_df = outlet_routes.copy()
+        temp_df = out_routes.copy()
         # find the row of the current CP
         idx_row, _ = np.where(temp_df == i)
         # Mask the downstreams values

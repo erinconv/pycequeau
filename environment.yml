@@ -1,11 +1,12 @@
 name: pycequeau
-
+channels:
+  - conda-forge
+  - defaults
 dependencies:
-  - python=3.7
   - gdal=3.0.2
+  - python=3.7
   - pyproj
   - xarray
-  - pytest
   - scipy
   - autopep8
   - matplotlib
@@ -13,4 +14,4 @@ dependencies:
   - geopandas
   - rasterstats
   - netcdf4
-prefix: /home/erinconv/anaconda3/envs/py37
+prefix: /home/labo/anaconda3/envs/pycequeau

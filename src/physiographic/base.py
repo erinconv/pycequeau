@@ -36,8 +36,7 @@ class Basin:
             self._project_path, "geographic", "CE_fishnet.shp")
         self._CPfishnet = os.path.join(
             self._project_path, "geographic", "CP_fishnet.shp")
-        # Polygonize and process the raster watershed and subbasins file
-        self.rasterize_maps()
+
         # Check if the bassin versant object is an input file
         if len(args) == 1:
             # Check if the provided file is an an actual json file
@@ -47,6 +46,9 @@ class Basin:
                 self.bassinVersant = json.loads(f.read())
             except ValueError:
                 raise ValueError("Provided file is not a json file")
+        else:
+            # Polygonize and process the raster watershed and subbasins file
+            self.rasterize_maps()
         self.n_cols = []
         self.n_rows = []
         self._dx = []
