@@ -58,13 +58,13 @@ def units_CORDEX(ds: xr.Dataset):
 def units_ERA(ds: xr.Dataset):
     # List the variable names
     var_name = list(ds.keys())[0]
-    if var_name == "ptot":
+    if var_name == "tp":
         # from m d-1 to mm d-1
         ds[var_name].attrs = dict(units="mm d-1",
                                   long_name="Total precipitation")
         ds[var_name].values = 1e3*ds[var_name].values
         ds = ds.rename({var_name: "pTot"})
-    if var_name == "sol_rad":
+    if var_name == "ssr":
         # from W m-2 to MJ m2 d-1
         ds[var_name].attrs = dict(units="MJ m-2 d-1",
                                   long_name="Surface solar radiation")
@@ -86,9 +86,9 @@ def units_ERA(ds: xr.Dataset):
                                   long_name="Vapor pressure")
         # ds[var_name].values = 7.50062e-3*ds[var_name].values
         ds = ds.rename({var_name: "pression"})
-    if var_name == "t2m_min" or var_name == "t2m_max":
+    if var_name == "tmax" or var_name == "tmin":
         # from K to degC
-        if var_name == "t2m_max":
+        if var_name == "tmax":
             long_name = "Maximum daily air temperature"
             ds = ds.rename({var_name: "tMax"})
             var_name = "tMax"

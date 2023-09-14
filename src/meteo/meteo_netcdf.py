@@ -38,7 +38,7 @@ class StationNetCDF(Meteo):
         # Set the basin dimensions based on the information contained in the basssinVersant structure
         # Convert from km2 to m2
         CE_area = self.basin_struct.bassinVersant["superficieCE"]*1e6
-        self.basin_struct.set_dimenssions(np.sqrt(CE_area), np.sqrt(CE_area))
+        self.basin_struct.set_dimensions(np.sqrt(CE_area), np.sqrt(CE_area))
 
     @classmethod
     def charge_CORDEX_Meteo(cls, bassinVersant: Basin, vars_path: str) -> StationNetCDF:
@@ -133,7 +133,8 @@ class StationNetCDF(Meteo):
         # Create the CEgrid file
         CE_array = self.basin_struct.create_CEgrid()
         # Open the shp file from the basin structure
-        watershed = ogr.Open(self.basin_struct._Basin, gdal.GA_ReadOnly)
+        watershed = ogr.Open(self.basin_struct._Basin.replace(
+            ".tif", ".shp"), gdal.GA_ReadOnly)
         # Get x-y pairs
         xy_pair = get_netCDF_grids(self.ds,
                                    self.basin_struct._CEgrid,

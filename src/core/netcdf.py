@@ -11,12 +11,12 @@ def clip_netcdf(nc_files_path: str, bounds: list, output_path: str):
     for i, file in enumerate(nc_files_list_path):
         nc_data = xr.open_dataset(file, engine="netcdf4")
         coords_names = list(nc_data.coords)
+        # Rename the latitudes-longitudes
+        lat = "lat"
+        lon = "lon"
         if "longitude" in coords_names:
-            lon = "longitude"
-            lat = "latitude"
-        else:
-            lon = "lon"
-            lat = "lat"
+            nc_data = nc_data.rename({"longitude": "lon",
+                                      "latitude": "lat"})
         if nc_data[lon].min() > 0:
             min_lon = bounds[0]+360
             max_lon = bounds[1]+360
@@ -41,4 +41,7 @@ def clip_netcdf(nc_files_path: str, bounds: list, output_path: str):
             nc_var_names.remove("time_bnds")
         if nc_files_list[i] == "tmax.nc":
             sliced_nc = sliced_nc.rename({"tmin": "tmax"})
-        sliced_nc.to_netcdf(os.path.join(output_path, nc_files_list[i]))
+        path = os.path.join(output_path, nc_files_list[i])
+        if os.path.isfile(path):
+            os.remove(path)
+        sliced_nc.to_netcdf(path)
