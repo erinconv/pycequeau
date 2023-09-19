@@ -77,7 +77,7 @@ def find_neighbors(gdf: gpd.GeoDataFrame,
         try:
             gdf.at[index, 'NEIGHBORS'] = neighbors
             gdf.at[index, 'KEEP'] = keep
-        except:
+        except ValueError:
             if isinstance(neighbors, list):
                 gdf["NEIGHBORS"].iloc[count] = neighbors
                 gdf['KEEP'].iloc[count] = keep
@@ -369,6 +369,8 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
     CE_area = CE_fishnet.area.max()
     mask_CP = CP_fishnet["Area"] < area_th*CE_area
     CP_fishnet.loc[mask_CP, "Dissolve"] = 1
+    CP_fishnet.index = range(1, len(CP_fishnet)+1)
+    CP_fishnet["CPid"] = CP_fishnet.index.values
     for _, CE in CE_fishnet.iterrows():
 
         # Get the index for all the subbasin features
@@ -390,6 +392,9 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
             # Find the neighbor with the highest flow accumulation
             neighbors = CE_features.iloc[idx_small,
                                          columns.index("NEIGHBORS")].values[0]
+            # Check that there are no more neighbours
+            # if not neighbors:
+            #     continue
             maxFAC = np.amax(CE_features.loc[neighbors, "maxFAC"])
             idx_maxFAC, = np.where(
                 CE_features.loc[neighbors, "maxFAC"] == maxFAC)
@@ -397,19 +402,24 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
             idx_replaced = CE_features.iloc[idx_small, columns.index("CPid")]
             # Replace the value in the main dataframe
             CP_fishnet.loc[idx_replaced, "CPid"] = neighbors[idx_maxFAC[0]]
-            # Replace the CPid value into the small CP
-            CE_features.iloc[idx_small, columns.index(
-                "CPid")] = neighbors[idx_maxFAC[0]]
             # Now dissolve all CE_features and rearange the things
-            CE_features = CE_features.dissolve(by="CPid", aggfunc="max")
-            CE_features.index = CE_features.index.rename("index")
-            CE_features["CPid"] = CE_features.index.values
+            CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
+            CP_fishnet.index = CP_fishnet.index.rename("index")
+            CP_fishnet.index = range(1, len(CP_fishnet)+1)
+            CP_fishnet["CPid"] = CP_fishnet.index.values
+            CP_fishnet["Area"] = CP_fishnet.area
+            # Replace the CPid value into the small CP
+            idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
+            CE_features = CP_fishnet.iloc[idx]
+            df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+            # CE_features.iloc[idx_small, columns.index(
+            #     "CPid")] = neighbors[idx_maxFAC[0]]
 
     # Save file
-    CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
-    CP_fishnet.index = CP_fishnet.index.rename("index")
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    CP_fishnet.at[:, "Area"] = CP_fishnet.area
+    # CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
+    # CP_fishnet.index = CP_fishnet.index.rename("index")
+    # CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
+    # CP_fishnet.at[:, "Area"] = CP_fishnet.area
 
     # Given that this is the final dissolving step, here I will check for
     # duplicate geometries and drop them all if that's the case
@@ -564,43 +574,47 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
             continue
         # Slice the CE array using the corners into the main CE dataset
         row_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_min")]
-        row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]
+        # row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]
         col_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_min")]
-        col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]
+        # col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]
+        row_max = row_min + nrows
+        col_max = col_min + ncols
         CE = CE_array[row_min:row_max,
                       col_min:col_max]
         # Check the size of the sliced subset.
         # Sometimes the sliced subset is smaller than the actual subset size
         # because the indexes are derived from float values and some rounding
         # artifacts can affect the precision of the index
-        if CE.shape[0] < nrows:
-            row_min = CE_fishnet.iloc[idx_CE[0],
-                                      CE_columns.index("row_min")]-1
-            row_max = CE_fishnet.iloc[idx_CE[0],
-                                      CE_columns.index("row_max")]
-            CE = CE_array[row_min:row_max,
+        if CE.shape[0] != nrows:
+            # row_min = CE_fishnet.iloc[idx_CE[0],
+            #                           CE_columns.index("row_min")]-1
+            # row_max = CE_fishnet.iloc[idx_CE[0],
+            #                           CE_columns.index("row_max")]
+            CE = CE_array[row_min:(row_min+nrows),
                           col_min:col_max]
-        elif CE.shape[1] < ncols:
-            col_min = CE_fishnet.iloc[idx_CE[0],
-                                      CE_columns.index("col_min")]-1
-            col_max = CE_fishnet.iloc[idx_CE[0],
-                                      CE_columns.index("col_max")]
+        elif CE.shape[1] != ncols:
+            # col_min = CE_fishnet.iloc[idx_CE[0],
+            #                           CE_columns.index("col_min")]-1
+            # col_max = CE_fishnet.iloc[idx_CE[0],
+            #                           CE_columns.index("col_max")]
             CE = CE_array[row_min:row_max,
-                          col_min:col_max]
+                          col_min:(col_min + ncols)]
 
         # Get the unique rows and cols that exist in the sliced array
         unique_rows, counts_rows = np.unique(CE, return_counts=True, axis=0)
         unique_cols, counts_cols = np.unique(CE, return_counts=True, axis=1)
         if unique_rows.shape[0] > 1:
-            row_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_min")]-1
-            row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]-1
-            CE = CE_array[row_min:row_max,
+            # row_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_min")]-1
+            # row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]-1
+            row_max = row_min-1+nrows
+            CE = CE_array[(row_min-1):row_max,
                           col_min:col_max]
         if unique_cols.shape[1] > 1:
-            col_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_min")]-1
-            col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]-1
+            # col_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_min")]-1
+            # col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]-1
+            col_max = col_min-1+ncols
             CE = CE_array[row_min:row_max,
-                          col_min:col_max]
+                          (col_min-1):col_max]
         # Find the CP values whitin the CE subset
         CP = CP_array[row_min-1:row_max+1,
                       col_min-1:col_max+1]
@@ -684,9 +698,9 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
     # Check if there are CPs to drop
     idx_nan_inCP = rtable["oldCPid"].isnull()
     index_drop = rtable.index[idx_nan_inCP]
-    if len(index_drop) == 0:
-        CP_fishnet = CP_fishnet.drop(index=index_drop)
-        rtable = rtable.drop(index=index_drop)
+    # if len(index_drop) == 0:
+    #     CP_fishnet = CP_fishnet.drop(index=index_drop)
+    #     rtable = rtable.drop(index=index_drop)
     # rtable['newCPid'] = rtable['newCPid'].astype('int')
     # idx = np.where()
     # rtable.index = CP_fishnet.index
@@ -916,55 +930,3 @@ def cumulative_areas(CP_fishnet: gpd.GeoDataFrame,
     upstreamcps_array[-1, 0] = len(upstreamCPs)
     # return allroute_lists_array
     return CP_fishnet, upstreamcps_array
-# Add the data to the routing table
-
-# subDIR = subDIR*mask_FAC
-# Get the stream network
-# stream = compute_flow_path(subDIR,subFAC,np.nanmean(subFAC))
-
-# outlet_row, outlet_col = np.where(subFAC == np.amax(subFAC))
-# if isinstance(outlet_row,np.ndarray) > 1:
-#     print("AAA")
-#     break
-# else:
-#     print(feat['CPid'],outlet_row, outlet_col)
-#     print(subFAC[outlet_row, outlet_col])
-# print(np.unique(CP))
-# print(CP)
-# print(subDIR)
-# print(stream.astype("uint8"))
-# print(subFAC)
-# print(mask_FAC)
-#     # Get the index for all the subbasin features
-#     idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
-#     # Get all features inside the CE
-#     CE_features = CP_fishnet.iloc[idx]
-#     # Check if the CE is empty
-#     if CE_features.empty:
-#         continue
-
-# Get the ids for each subbasin
-# id_sub = np.unique(CP_fishnet["OBJECTID"][mask_CP])
-# id_CE = np.unique(CP_fishnet["id"][mask_CP])
-# CP_fishnet = CP_fishnet.dissolve(by='CPid', aggfunc='first')
-# Loop into each subbasin
-# for CE in id_CE:
-#     # Get the index for all the subbasin features
-#     idx, = np.where(CP_fishnet["id"] == 527)
-#     CE_features = CP_fishnet.iloc[idx]
-#     for i in range(len(CE_features)):
-#         # print(CE_features["Dissolve"])
-#         if CE_features["Dissolve"].iloc[i]==1:
-#             print(CE_features["geometry"].touches(CE_features["geometry"],align=True))
-#     # print(CE_features["Dissolve"].iloc[1])
-#     break
-# for
-# Mask nan
-# mask_NaN = CP_fishnet[mask_CP]
-# print(CP_fishnet[mask_CP])
-# print(CP_area[mask_CP])
-# print(len(CP_fishnet))
-# print(len(CP_fishnet.explode()))
-# mask = CP_fishnet['CPid']==759
-# print(CP_fishnet[mask])
-# return

@@ -348,7 +348,7 @@ class Basin:
         CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
         CPfishnet = CPfs.force_4CP(CEfishnet, CPfishnet, area_th)
         # CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
-        df = pd.DataFrame(CPfishnet.drop(columns='geometry'))
+        # df = pd.DataFrame(CPfishnet.drop(columns='geometry'))
         # Save the files with all the CP dissolved
         CPfishnet.to_file(self._CPfishnet)
         return None
