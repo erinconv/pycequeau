@@ -6,6 +6,7 @@ from osgeo import gdal, ogr
 import pandas as pd
 import numpy as np
 import geopandas as gpd
+import matplotlib.pyplot as plt
 from src.physiographic import carreauxEntiers as CEs
 from src.physiographic import carreauxPartiels as CPs
 from src.physiographic import CPfishnet as CPfs
@@ -55,12 +56,12 @@ class Basin:
         self._dy = []
         self.pixel_width = []
         self.pixel_height = []
-        # self.CPfishnet = []
-        # self.CEfishnet = []
-        # self.rtable = []
-        # self.outlet_routes = []
-        # self._newSubBasins = []
-        # self._SubBasins = []
+        # self.CPfishnet = None
+        # self.CEfishnet = None
+        # self.rtable = None
+        # self.outlet_routes = None
+        # self._newSubBasins = None
+        # self._SubBasins = None
 
     def _project_structure(self, file_list: str):
         """_summary_
@@ -345,8 +346,8 @@ class Basin:
         # TODO: This is a temporary solution to drop all the pixel-size features in the CP fishnet. Needs to be corrected in the future
         pixel_size_area = self.pixel_height*self.pixel_width
         # Find the areas this size
-        CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
         CPfishnet = CPfs.force_4CP(CEfishnet, CPfishnet, area_th)
+        CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
         # CPfishnet = CPfs.dissolve_pixels(CEfishnet, CPfishnet, pixel_size_area)
         # df = pd.DataFrame(CPfishnet.drop(columns='geometry'))
         # Save the files with all the CP dissolved
@@ -408,12 +409,16 @@ class Basin:
         np.savetxt(upstream_cps_name,
                    upstream_cps,
                    delimiter=",", fmt="%1i")
+        # Save the rtable file
+        rtable_name = os.path.join(
+            self._project_path, "results", "rtable.csv")
+        self.rtable.to_csv(rtable_name)
         # Send the fishnets to the basin object to have it available
 
         # Save the files
         self.CPfishnet['newCPid'] = self.CPfishnet['newCPid'].astype('int')
-        self.CPfishnet.to_file(self._CPfishnet)
-        self.CEfishnet.to_file(self._CEfishnet)
+        # self.CPfishnet.to_file(self._CPfishnet)
+        # self.CEfishnet.to_file(self._CEfishnet)
 
     @classmethod
     def get_water_cover(cls,
@@ -727,7 +732,50 @@ class Basin:
         # Save the files in the results folder
         with open(os.path.join(self._project_path, "results", "bassinVersant.json"), "w") as outfile:
             json.dump(self.bassinVersant, outfile, indent=4)
-        pass
+
+    def plot_routing(self, area_th=0.01):
+        # Centroinds
+        CP_fishnet = gpd.read_file(self._CPfishnet)
+        cp_struct_name = os.path.join(
+            self._project_path, "results", "carreauxPartiels.csv")
+        carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
+        CP_fishnet["x_c"] = CP_fishnet.centroid.x
+        CP_fishnet["y_c"] = CP_fishnet.centroid.y
+        # Define the pair of coordinates
+        p1 = np.zeros((len(CP_fishnet), 2))
+        p2 = p1.copy()
+        u_c = np.zeros(len(CP_fishnet))
+        v_c = u_c.copy()
+
+        fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
+        CP_fishnet.plot(ax=ax, column="cumulArea")
+        max_area = CP_fishnet["cumulArea"].max()
+        idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
+        CP_fishnet.index = CP_fishnet["newCPid"].values
+        carreaux_partiels.index = CP_fishnet["newCPid"].values
+        for i, CP in CP_fishnet.iterrows():
+            cp_aval = carreaux_partiels.loc[i, "idCPAval"]
+            if cp_aval == 0:
+                p1[i-1, :] = [CP_fishnet.loc[i, "x_c"],
+                              CP_fishnet.loc[i, "y_c"]]
+                p2[i-1, :] = [CP_fishnet.loc[i, "x_c"],
+                              CP_fishnet.loc[i, "y_c"]]
+            else:
+                p1[i-1, :] = [CP_fishnet.loc[i, "x_c"],
+                              CP_fishnet.loc[i, "y_c"]]
+                p2[i-1, :] = [CP_fishnet.loc[cp_aval, "x_c"],
+                              CP_fishnet.loc[cp_aval, "y_c"]]
+
+        # Computing vector components
+        u_c = p2[:, 0] - p1[:, 0]
+        v_c = p2[:, 1] - p1[:, 1]
+
+        ax.quiver(p1[idx_small_area, 0], p1[idx_small_area, 1],
+                  u_c[idx_small_area], v_c[idx_small_area],
+                  scale_units='xy',
+                  angles='xy',
+                  scale=1)
+        plt.show()
 
     def create_CEgrid(self):
         # Default no data value of the CAT raster

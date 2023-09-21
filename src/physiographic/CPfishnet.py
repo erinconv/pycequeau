@@ -207,7 +207,7 @@ def remove_smallCP(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet.loc[mask_CP, "Dissolve"] = 1
     count = 0
     while CP_fishnet["Dissolve"].max() == 1:
-        dissolve_vals = CP_fishnet["Dissolve"].values
+        # dissolve_vals = CP_fishnet["Dissolve"].values
         for _, CE in CE_fishnet.iterrows():
             # Track the already processed CPs
             tracked_cps = []
@@ -289,9 +289,6 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
     Also, all the pixel-size features need to be merged with the bigger neighbors
     in order to avoid errors while computing zonal area in further steps.
 
-    TODO: This solution is temporary. Removing this small pixel does not affect
-    but I still need to come up with a more smooth solution
-
     Args:
         CE_fishnet (gpd.GeoDataFrame): _description_
         CP_fishnet (gpd.GeoDataFrame): _description_
@@ -305,57 +302,42 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
     # mask_pixel_feats = CP_fishnet["Area"] > 2*abs(pixel_size_area)
     CP_fishnet["Area"] = CP_fishnet.area
     # Drop values less than three pixels size
-    CP_fishnet = CP_fishnet.drop(
-        CP_fishnet[CP_fishnet["Area"] <= 3*abs(pixel_size_area)].index)
+    mask_pixels = CP_fishnet["Area"] <= 3*abs(pixel_size_area)
+    CP_fishnet["Dissolve"] = 0
+    CP_fishnet.loc[mask_pixels, "Dissolve"] = 1
+    CP_fishnet.loc[:, "CPid"] = range(1, len(CP_fishnet)+1)
+    CP_fishnet.index = range(1, len(CP_fishnet)+1)
+    for _, CE in CE_fishnet.iterrows():
+        # Get the index for all the subbasin features
+        idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
+        # Get all features inside the CE
+        CE_features = CP_fishnet.iloc[idx]
+        # Check if the CE is empty
+        if CE_features.empty or CE_features["Dissolve"].max() == 0:
+            continue
+        tracked_cps = []
+        CE_features = find_neighbors(CE_features, "CPid")
+        for i, CP in CE_features.iterrows():
+            # Track the already processed CPs
+            # Check if the CP was already processed
+            if CP["CPid"] in tracked_cps:
+                continue
+            # Check if need to dissolve
+            if CP["Dissolve"]:
+                # Get the neighbors and the condition
+                neighbors = CE_features.loc[i, "NEIGHBORS"]
+                idx_max_area = CE_features.loc[neighbors, "maxFAC"].idxmax()
+                CP_fishnet.loc[CP["CPid"], "CPid"] = idx_max_area
+                tracked_cps.append(CP["CPid"])
+            continue
+
     CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
-    # _Re-do the dissolve labeling
-    CP_fishnet["Area"] = CP_fishnet.area
-    # _Save file
+    # Re-do the dissolve labeling
+    # Save file
     CP_fishnet.index = CP_fishnet.index.rename("index")
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-
-    # Explode the values and reassing the index and CP values
-    # CP_fishnet = CP_fishnet.explode()
-    # CP_fishnet["Area"] = CP_fishnet.area
-    # CEarea = CE_fishnet.area.max()
-    # mask_area = CP_fishnet["Area"] < area_th*CEarea
-    # CP_fishnet.loc[mask_area, "Dissolve"] = 1
-    # CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
-    # CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    # mask_dissolve = CP_fishnet["Dissolve"] == 1
-    # dissolve_cps = CP_fishnet.loc[mask_dissolve, "CPid"].tolist()
-    # # find only the CPs that need to be dissolved
-    # tracked_cps = []
-    # for _, CE in CE_fishnet.iterrows():
-    #     # Track the already processed CPs
-    #     # Get the index for all the subbasin features
-    #     idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
-    #     CE_features = CP_fishnet.iloc[idx]
-    #     if CE_features["Dissolve"].max() == 0:
-    #         continue
-    #     CE_features = find_neighbors(CE_features, "CPid")
-    #     for i, CP in CE_features.iterrows():
-    #         # Check if the CP was already processed
-    #         if CP["CPid"] in tracked_cps:
-    #             continue
-    #         if CP["CPid"] in dissolve_cps:
-    #             tracked_cps.append(CP["CPid"])
-    #             idx_max = CE_features.loc[CP["NEIGHBORS"], "maxFAC"].idxmax()
-    #             CP_fishnet.at[i, "CPid"] = idx_max
-    #             tracked_cps.extend(CP["NEIGHBORS"])
-
-    # CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
-    # CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
-    # # Re-do the dissolve labeling
-    # CP_fishnet["Area"] = CP_fishnet.area
-    # mask_CP = CP_fishnet["Area"] < area_th*CEarea
-    # CP_fishnet["Dissolve"] = 0
-    # CP_fishnet.loc[mask_CP, "Dissolve"] = 1
-    # # Save file
-    # CP_fishnet.index = CP_fishnet.index.rename("index")
-    # CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    # CP_fishnet = CP_fishnet.explode()
-    # CP_fishnet["Area"] = CP_fishnet.area
+    CP_fishnet.index = range(1, len(CP_fishnet)+1)
+    CP_fishnet["CPid"] = CP_fishnet.index.values
+    CP_fishnet["Area"] = CP_fishnet.area
     # df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     return CP_fishnet
 
@@ -536,21 +518,16 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
                   nrows: float) -> tuple:
     # Renaming index to make sure it starts from 1
     CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
-    CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    # CP_fishnet.index = range(1, len(CP_fishnet)+1)
     CP_fishnet = CP_fishnet.sort_values(by=["CPid"])
+    CP_fishnet.index = CP_fishnet["CPid"].values
     # Create dataframe to store the routing data
-    routing = pd.DataFrame(columns=["CPid", "inCPid", "inCPid2", "outlet_row",
-                                    "outlet_col", "inlet_row", "inlet_col"],
+    routing = pd.DataFrame(columns=["CPid", "inCPid", "oldCP", "FAC"],
                            index=CP_fishnet.index)
     # Assign values to the routing dataframe
     # Compute the boundaries for each square within the CE and CP fishnets
-    # CP_fishnet = pd.concat([CP_fishnet,
-    #                         CP_fishnet["geometry"].bounds], axis=1)
     CE_fishnet = pd.concat([CE_fishnet,
                             CE_fishnet["geometry"].bounds], axis=1)
     routing["CPid"] = CP_fishnet["CPid"].values
-    # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     # Get the FAC array
     FAC_dataset = gdal.Open(FAC, gdal.GA_ReadOnly)
     band = FAC_dataset.GetRasterBand(1)
@@ -559,8 +536,6 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
     # Get the CE square indexes
     CE_fishnet = convert_coords_to_index(CE_fishnet, FAC_dataset)
     CE_columns = CE_fishnet.columns.tolist()
-    # CP_fishnet = convert_coords_to_index(CP_fishnet, FAC_dataset)
-    # CP_columns = CP_fishnet.columns.tolist()
     # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     # df2 = pd.DataFrame(CE_fishnet.drop(columns='geometry'))
     # Loop into each CE
@@ -574,11 +549,9 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
             continue
         # Slice the CE array using the corners into the main CE dataset
         row_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_min")]
-        # row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]
+        row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]
         col_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_min")]
-        # col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]
-        row_max = row_min + nrows
-        col_max = col_min + ncols
+        col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]
         CE = CE_array[row_min:row_max,
                       col_min:col_max]
         # Check the size of the sliced subset.
@@ -586,36 +559,51 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
         # because the indexes are derived from float values and some rounding
         # artifacts can affect the precision of the index
         if CE.shape[0] != nrows:
-            # row_min = CE_fishnet.iloc[idx_CE[0],
-            #                           CE_columns.index("row_min")]-1
-            # row_max = CE_fishnet.iloc[idx_CE[0],
-            #                           CE_columns.index("row_max")]
-            CE = CE_array[row_min:(row_min+nrows),
+            # row_min = row_min
+            row_max = row_min + nrows
+            CE = CE_array[row_min:row_max,
                           col_min:col_max]
         elif CE.shape[1] != ncols:
-            # col_min = CE_fishnet.iloc[idx_CE[0],
-            #                           CE_columns.index("col_min")]-1
-            # col_max = CE_fishnet.iloc[idx_CE[0],
-            #                           CE_columns.index("col_max")]
+            # col_min = col_min
+            col_max = col_min + ncols
             CE = CE_array[row_min:row_max,
-                          col_min:(col_min + ncols)]
+                          col_min:col_max]
 
         # Get the unique rows and cols that exist in the sliced array
-        unique_rows, counts_rows = np.unique(CE, return_counts=True, axis=0)
-        unique_cols, counts_cols = np.unique(CE, return_counts=True, axis=1)
+        unique_rows, _ = np.unique(CE, return_counts=True, axis=0)
         if unique_rows.shape[0] > 1:
-            # row_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_min")]-1
-            # row_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("row_max")]-1
-            row_max = row_min-1+nrows
-            CE = CE_array[(row_min-1):row_max,
-                          col_min:col_max]
-        if unique_cols.shape[1] > 1:
-            # col_min = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_min")]-1
-            # col_max = CE_fishnet.iloc[idx_CE[0], CE_columns.index("col_max")]-1
-            col_max = col_min-1+ncols
+            diff = np.diff(CE, axis=0)
+            idx_diff_zero, _ = np.where(diff != 0)
+            # Compare the value with respect to the number of cols
+            if idx_diff_zero[0] > 0:
+                # if counts_rows[0] < counts_rows[1]:
+                val = -1
+            else:
+                val = 1
+            row_min = row_min + val
+            row_max = row_min + nrows
+            # row_max = row_min-1+nrows
             CE = CE_array[row_min:row_max,
-                          (col_min-1):col_max]
+                          col_min:col_max]
+        unique_cols, _ = np.unique(CE, return_counts=True, axis=1)
+        if unique_cols.shape[1] > 1:
+            # Find the differences along the column
+            diff = np.diff(CE, axis=1)
+            _, idy_diff_zero = np.where(diff != 0)
+            # Compare the value with respect to the number of cols
+            if idy_diff_zero[0] > 0:
+                # if counts_cols[0] > counts_cols[1]:
+                val = -1
+            else:
+                val = 1
+            col_min = col_min + val
+            col_max = col_min + ncols
+            # col_max = col_min-1+ncols
+            CE = CE_array[row_min:row_max,
+                          col_min:col_max]
         # Find the CP values whitin the CE subset
+        CE = CE_array[row_min-1:row_max+1,
+                      col_min-1:col_max+1]
         CP = CP_array[row_min-1:row_max+1,
                       col_min-1:col_max+1]
         subFAC = FAC_array[row_min-1:row_max+1,
@@ -634,37 +622,37 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
         mask_FAC = np.zeros(subFAC.shape).astype("uint8")
         mask_FAC[outlet_row - 1:outlet_row + 2,
                  outlet_col - 1:outlet_col + 2] = 1
-        # masked_FAC = subFAC*mask_FAC
         # Get the FAC values on the mask
         # Find location of next pixel into which outlet flows
         inlet_row, inlet_col = np.unravel_index(
             np.argmax(subFAC*mask_FAC), subFAC.shape)
         # Add the CP where it discharges
         routing.loc[index, "inCPid"] = CP[inlet_row, inlet_col]
-        routing.loc[index, "inCPid2"] = CP[inlet_row, inlet_col]
-        # Add thees into the dataframe
-        routing.loc[index, "outlet_col"] = outlet_col-1
-        routing.loc[index, "outlet_row"] = outlet_row-1
-        routing.loc[index, "inlet_row"] = inlet_row-1
-        routing.loc[index, "inlet_col"] = inlet_col-1
+        routing.loc[index, "FAC"] = subFAC[outlet_row, outlet_col]
+        # if routing.loc[index, "CPid"] == routing.loc[index, "inCPid"]:
+        #     continue
+        # if routing.loc[index, "inCPid"] == 0:
+        #     continue
     # *There are probably cases where a given CP drains into a non existence CP.
     # *So, here we make sure that we drop all the CP where this happens into the main data frame.
     # *This is because the CPs in the border can be so tiny that they do not account for the
     # *area threshold that we defined.
+    # Get the CPs where the its downstream is zero
     idx_zero_inCP = routing["inCPid"] == 0
-    index_drop = routing.index[idx_zero_inCP]
-    # Find the index in the main dataset
-    index_drop = CP_fishnet.index[idx_zero_inCP]
-    # Drop this value from the main dataframe
-    CP_fishnet = CP_fishnet.drop(index=index_drop)
-    routing = routing.drop(index=index_drop)
+    index_zero_flow_in = routing.index[idx_zero_inCP]
     # Create the rouring table here
-    rtable = pd.DataFrame(columns=["oldCPid", "newCPid", "upstreamCPs", "oldupstreams"],
+    rtable = pd.DataFrame(columns=["oldCPid", "newCPid",
+                                   "upstreamCPs", "oldupstreams"],
                           index=routing.index)
     routing["diff"] = routing["CPid"] - routing["inCPid"]
     # Find where the difference is zero
     # This will help us to find the outlet CP
     idx_outlet = routing.index[routing["diff"] == 0].tolist()
+    if len(idx_outlet) > 1:
+        assert False, "There are more than 1 outlet point."
+    elif len(idx_outlet) == 0:
+        assert False, "The outlet point was not found"
+    # assert len(idx_outlet) == 1, "There are more than 1 outlet point."
     # idx_outlet = routing.mask(routing["diff"] != 0)
     # Add this value in the rtable as the first value
     rtable.at[1, "oldCPid"] = routing.loc[idx_outlet, "CPid"].values[0]
@@ -695,13 +683,19 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
             new_id_counter += len(idx_outlet)
             routing.loc[idx_outlet, "inCPid"] = -99999
 
-    # Check if there are CPs to drop
+    # Check if there is NAN values in the rtable
     idx_nan_inCP = rtable["oldCPid"].isnull()
-    index_drop = rtable.index[idx_nan_inCP]
-    # if len(index_drop) == 0:
+    index_nan = rtable.index[idx_nan_inCP]
+    # Fill this nan values in the newCPid with a flag to keep tracking it in the next steps
+    # CP_fishnet.loc[index_zero_flow_in, "CPid"] = -9999
+    # rtable.loc[index_nan, "newCPid"] = -9999
+    rtable.loc[index_nan, "newCPid"] = index_nan
+    rtable.loc[index_nan, "oldCPid"] = routing.loc[index_nan, "CPid"]
+    # if len(index_drop) != 0:
     #     CP_fishnet = CP_fishnet.drop(index=index_drop)
     #     rtable = rtable.drop(index=index_drop)
-    # rtable['newCPid'] = rtable['newCPid'].astype('int')
+    rtable['newCPid'] = rtable['newCPid'].astype('int')
+    rtable['oldCPid'] = rtable['oldCPid'].astype('int')
     # idx = np.where()
     # rtable.index = CP_fishnet.index
     # CP_fishnet = CP_fishnet.join(rtable[["oldCPid"]])
@@ -713,9 +707,10 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
     # index_drop = rtable.index[idx_nan_inCP]
     # idx_fishnet_drop, = np.where(CP_fishnet["CPid"] == index_drop)
     # index_fishnet_drop = CP_fishnet.index[idx_fishnet_drop]
-    # CP_fishnet = CP_fishnet.drop(index=index_fishnet_drop)
+    # CP_fishnet = CP_fishnet.drop(index=rtable[""])
     # rtable.index = range(1, len(rtable)+1)
-    # CP_fishnet.index = range(1, len(rtable)+1)
+    # CP_fishnet.index = rtable.index
+    # CP_fishnet["CPid"] = CP_fishnet.index
     # CP_fishnet = CP_fishnet.drop(columns=["minx", "miny",
     #                                       "maxx", "maxy",
     #                                       "col_min", "row_min",
@@ -729,6 +724,7 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
                       rtable: pd.DataFrame) -> gpd.GeoDataFrame:
     # Renumbering the CPs
     CP_fishnet["newCEid"] = 0
+    CP_fishnet["newCPid"] = 0
     CE_fishnet["newCEid"] = 0
     CE_track_list = []
     rtable = rtable.sort_values(by=["oldCPid"])
@@ -780,7 +776,11 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
     indexes_drop = CE_fishnet.index[idx_drop_CE]
     # Drop by  index
     CE_fishnet = CE_fishnet.drop(index=indexes_drop)
-    # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+    # # Re-do the indexing to fix it
+    # CP_fishnet = CP_fishnet.sort_values(by=["newCPid"])
+    # CP_fishnet["newCPid"] = range(1, len(CP_fishnet)+1)
+    # CP_fishnet.index = range(1, len(CP_fishnet)+1)
+    df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     return CP_fishnet, CE_fishnet
 
 
@@ -797,11 +797,18 @@ def get_downstream_CP(rtable: pd.DataFrame) -> pd.DataFrame:
     list_upstream_array = np.zeros(
         [len(rtable), max(lists_len)]).astype("uint16")
     # Fill up the array using the lists in the main dataframe
+    list_to_upstream_append = []
     for i, _ in rtable.iterrows():
         if isinstance(rtable.loc[i, "upstreamCPs"], list):
             list_up = rtable.loc[i, "upstreamCPs"]
             list_upstream_array[i-1, 0:len(list_up)] = list_up
-        rtable.loc[i, "upstreamCPs"] = list_upstream_array[i-1, :].tolist()
+            list_to_upstream_append.append(
+                list_upstream_array[i-1, :].tolist())
+        else:
+            list_to_upstream_append.append(
+                list_upstream_array[i-1, :].tolist())
+            # rtable.loc[i, "upstreamCPs"] = list_upstream_array[i-1, :].tolist()
+    rtable["upstreamCPs"] = list_to_upstream_append
     # Now identify the Downstream CPs
     for i, table in rtable.iterrows():
         # Find the index of the CP in wwhich the current CP drains
@@ -836,10 +843,11 @@ def outlet_routes(rtable: pd.DataFrame) -> pd.DataFrame:
             route_list.append(up)
             up = rtable.loc[up, "downstreamCPs"]
             count_ups += 1
-            if count_ups >= len(rtable):
+            route_list = np.unique(route_list)
+            route_list = route_list.tolist()
+            if count_ups > 10*len(rtable):
                 # TODO: Check what would rise this issue. Although this does not affect the correct functioning of the process
-                route_list = np.unique(route_list)
-                route_list = route_list.tolist()
+                # raise ValueError
                 break
             # go down from Nth position until end
             # up = rtable.iloc[up-1, "downstreamCPs"]
