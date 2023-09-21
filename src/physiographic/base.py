@@ -6,6 +6,7 @@ from osgeo import gdal, ogr
 import pandas as pd
 import numpy as np
 import geopandas as gpd
+import rasterstats as rs
 import matplotlib.pyplot as plt
 from src.physiographic import carreauxEntiers as CEs
 from src.physiographic import carreauxPartiels as CPs
@@ -62,6 +63,14 @@ class Basin:
         # self.outlet_routes = None
         # self._newSubBasins = None
         # self._SubBasins = None
+
+    @property
+    def cp_fishnet_name(self):
+        return self._CPfishnet
+
+    @property
+    def project_path(self):
+        return self._project_path
 
     def _project_structure(self, file_list: str):
         """_summary_
@@ -330,7 +339,7 @@ class Basin:
         """_summary_
 
         Args:
-            area_th (float, optional): _description_. Defaults to 0.01.
+            area_th (float, optional): _description_. Defaults to 0.05.
             flow_th (float, optional): _description_. Defaults to 5e3.
         """
         # out_name = os.path.join(
@@ -369,16 +378,21 @@ class Basin:
         # Get the routing table. This table renames the CPs from the outlet
         # up to the last CP. Here the upstream CP are also identify for each
         # individual CP
-        self.rtable, self.CPfishnet = CPfs.routing_table(self.CPfishnet,
-                                                         self.CEfishnet,
-                                                         self._FAC,
-                                                         CP_array,
-                                                         CE_array,
-                                                         self.n_cols,
-                                                         self.n_rows)
+        self.routing = CPfs.routing_table(self.CPfishnet,
+                                          self.CEfishnet,
+                                          self._FAC,
+                                          CP_array,
+                                          CE_array,
+                                          self.n_cols,
+                                          self.n_rows)
+        # Get the rtable
+        self.rtable, self.CPfishnet = CPfs.get_rtable(self.CPfishnet,
+                                                      self.routing)
         # Renumbering the fishnets
-        self.CPfishnet, self.CEfishnet = CPfs.renumber_fishnets(
-            self.CPfishnet, self.CEfishnet, self.rtable)
+        self.CPfishnet, self.CEfishnet = CPfs.renumber_fishnets(self.CPfishnet,
+                                                                self.CEfishnet,
+                                                                self.rtable,
+                                                                self.routing)
         # Obtain the downstream CP based on the previous process
         self.rtable = CPfs.get_downstream_CP(self.rtable)
         # self.rtable["newCPid"] = pd.to_numeric(self.rtable["newCPid"])
@@ -413,33 +427,43 @@ class Basin:
         rtable_name = os.path.join(
             self._project_path, "results", "rtable.csv")
         self.rtable.to_csv(rtable_name)
+
+        # Save the routing file
+        routing_name = os.path.join(
+            self._project_path, "results", "routing.csv")
+        self.routing.to_csv(routing_name)
         # Send the fishnets to the basin object to have it available
 
         # Save the files
         self.CPfishnet['newCPid'] = self.CPfishnet['newCPid'].astype('int')
-        # self.CPfishnet.to_file(self._CPfishnet)
-        # self.CEfishnet.to_file(self._CEfishnet)
+        self.CEfishnet['newCEid'] = self.CEfishnet['newCEid'].astype('int')
+        self.CPfishnet.to_file(self._CPfishnet)
+        self.CEfishnet.to_file(self._CEfishnet)
 
     @classmethod
     def get_water_cover(cls,
                         shp_name: str,
-                        shp_fishnet: gpd.GeoDataFrame,
-                        ref_raster: str, att: str) -> list:
+                        gdf: gpd.GeoDataFrame,
+                        ref_raster: str,
+                        ncols: int,
+                        nrows: int) -> list:
         """_summary_
 
         Args:
-            shp_name (str): _description_
-            shp_fishnet (gpd.GeoDataFrame): _description_
-            ref_raster (str): _description_
-            att (str): _description_
+            shp_name (str): Water bodies shape file name
+            shp_fishnet (gpd.GeoDataFrame): fishnet shape file
+            ref_raster (str): reference raster to get the size of the pixel
+            ncols (int): _description_
+            nrows (int): _description_
 
         Returns:
             list: _description_
         """
         # Open the waterbody as geopandas
         waterBodies = gpd.read_file(shp_name)
+        waterBodies = u.fix_geometry(waterBodies)
         # Clip the water shp with the fishnet
-        clip_shp_water = gpd.clip(waterBodies, shp_fishnet)
+        clip_shp_water = gpd.clip(waterBodies, gdf)
         # Store the file in the folder
         # Create a new field to use it as reference raster attribute
         clip_shp_water["mask"] = 1
@@ -450,26 +474,17 @@ class Basin:
         temp_tif_name = shp_name.replace(".shp", ".tif")
         u.rasterize_shp_as_byte(
             temp_shp_name, ref_raster, "mask", temp_tif_name)
-        # Get the x,y vaues of each shp feature
-        bounds = shp_fishnet["geometry"].bounds
-        shp_fishnet = pd.concat([shp_fishnet, bounds], axis=1)
-        ref_dataset = gdal.Open(ref_raster)
-        # * This function needs to have the index from 0 to len(df). So, here I fix this isssue.
-        # !!Do not change the function since it is also used by other processes in the previous procedures.
-        shp_fishnet.index = range(len(shp_fishnet))
-        shp_fishnet = CPfs.convert_coords_to_index(shp_fishnet, ref_dataset)
-        # df1 = pd.DataFrame(shp_fishnet.drop(columns='geometry'))
-        # List for storing water bodies percentage
-        water = []
-        for index, _ in shp_fishnet.iterrows():
-            # Get the feature
-            feature = shp_fishnet.loc[index]
-            raster_feature = u.rasterize_feature(feature, temp_tif_name, att)
-            # Count the number of
-            water.append(float(np.count_nonzero(
-                raster_feature)/raster_feature.size*100.0))
-
-        # Delete the temporary files
+        # Compute the zonal sats with the rasterized file
+        zonal_stats = rs.zonal_stats(gdf.geometry,
+                                     temp_tif_name,
+                                     categorical=True)
+        # Compute the percentages
+        water_df = pd.DataFrame(zonal_stats)
+        water_df = water_df.fillna(0)
+        water_df = water_df.iloc[:, 0]
+        size_ce = ncols*nrows
+        water = water_df.values/size_ce*100
+        # Delete temporary files
         os.remove(shp_name.replace(".shp", "2.shp"))
         os.remove(shp_name.replace(".shp", ".tif"))
         return water
@@ -477,38 +492,40 @@ class Basin:
     @classmethod
     def get_land_cover(cls,
                        gdf: gpd.GeoDataFrame,
-                       LC: str, att: str) -> tuple:
+                       LC_name: str,
+                       ncols: int,
+                       nrows: int) -> tuple:
         """_summary_
 
         Args:
             gdf (gpd.GeoDataFrame): _description_
-            LC (str): _description_
-            att (str): _description_
+            LC_name (str): _description_
+            ncols (int): _description_
+            nrows (int): _description_
 
         Returns:
             tuple: _description_
         """
-        # Get the x,y vaues of each shp feature
-        bounds = gdf["geometry"].bounds
-        gdf = pd.concat([gdf, bounds], axis=1)
-        # Open the reference dataset
-        LC_dataset = gdal.Open(LC)
-        # * This function needs to have the index from 0 to len(df). So, here I fix this isssue.
-        # !!Do not change the function since it is also used by other processes in the previous procedures.
-        gdf.index = range(len(gdf))
-        gdf = CPfs.convert_coords_to_index(gdf, LC_dataset)
-        # Loop into each CE
-        pctForet = []
-        pctSolNu = []
-        for index, _ in gdf.iterrows():
-            # Get the feature
-            feature = gdf.loc[index]
-            raster_feature = u.rasterize_feature(feature, LC, att)
-            # Count the number of
-            pctForet.append(float(np.count_nonzero((raster_feature >= 1) & (
-                raster_feature <= 6))/raster_feature.size*100.0))
-            pctSolNu.append(float(np.count_nonzero((raster_feature >= 7) & (
-                raster_feature <= 13))/raster_feature.size*100.0))
+        #
+
+        zonal_stats = rs.zonal_stats(gdf.geometry,
+                                     LC_name,
+                                     categorical=True)
+
+        df_stats = pd.DataFrame(zonal_stats)
+        col_vals = np.array(df_stats.columns)
+        # Get the indexes of the forest and bare soil
+        idx_forest = (col_vals >= 1) & (col_vals <= 6)
+        idx_sol_nu = (col_vals >= 7) & (col_vals <= 13)
+        forest_df = df_stats.iloc[:, idx_forest]
+        sol_nu_df = df_stats.loc[:, idx_sol_nu]
+        # Fill nan to zero
+        forest_df = forest_df.fillna(0)
+        sol_nu_df = sol_nu_df.fillna(0)
+        # Compute the percentage of forest and bare soil
+        size_ce = ncols*nrows
+        pctForet = forest_df.sum(axis=1).values/size_ce*100
+        pctSolNu = sol_nu_df.sum(axis=1).values/size_ce*100
         return pctForet, pctSolNu
 
     def carreauxEntiers_struct(self) -> None:
@@ -529,28 +546,35 @@ class Basin:
         # Get the landcover dataset
         pctForet, pctSolNu = self.get_land_cover(self.CEfishnet,
                                                  self._LC,
-                                                 "newCEid")
+                                                 self.n_cols,
+                                                 self.n_rows)
         # Check if there are different files for water bodies
         if self._Waterbodies == self._Wetlands:
             # Get the lakes
             pctLacRiviere = self.get_water_cover(self._Waterbodies,
                                                  self.CEfishnet,
-                                                 self._DEM, "newCEid")
+                                                 self._DEM,
+                                                 self.n_cols,
+                                                 self.n_rows)
             # Get the same value to the marais
             pctMarais = pctLacRiviere.copy()
         else:
             pctLacRiviere = self.get_water_cover(self._Waterbodies,
                                                  self.CEfishnet,
-                                                 self._DEM, "newCEid")
+                                                 self._DEM,
+                                                 self.n_cols,
+                                                 self.n_rows)
             # Get the marshes
             pctMarais = self.get_water_cover(self._Wetlands,
                                              self.CEfishnet,
-                                             self._DEM, "newCEid")
+                                             self._DEM,
+                                             self.n_cols,
+                                             self.n_rows)
         # Scale the percentages to make sure that they all sum up 100%
-        CE_shp = np.array(pctLacRiviere) + np.array(pctMarais)
-        CE_tif = np.array(pctForet) + np.array(pctSolNu)
-        pctSolNu = (np.array(pctSolNu)/CE_tif)*(100-CE_shp)
-        pctForet = (np.array(pctForet)/CE_tif)*(100-CE_shp)
+        CE_shp = pctLacRiviere + pctMarais
+        CE_tif = pctForet + pctSolNu
+        pctSolNu = np.multiply(np.divide(pctSolNu, CE_tif), (100-CE_shp))
+        pctForet = np.multiply(np.divide(pctForet, CE_tif), 100-CE_shp)
         # Fix the nan values
         pctSolNu[np.isnan(pctSolNu)] = 0
         pctForet[np.isnan(pctForet)] = 0
@@ -570,13 +594,12 @@ class Basin:
                                             data=np.c_[coordinates["CEid"].values,
                                                        coordinates["i"].values,
                                                        coordinates["j"].values,
-                                                       np.array(pctLacRiviere).astype(
-                                                "float"),
-            pctForet.astype("float"),
-            np.array(pctMarais).astype(
-                                                "float"),
-            pctSolNu.astype("float"),
-            self.CEfishnet["altitude"].values])
+                                                       pctLacRiviere,
+                                                       pctForet,
+                                                       pctMarais,
+                                                       pctSolNu,
+                                                       self.CEfishnet["altitude"].values]
+                                            )
         # Change the values that must be integer types
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
             "uint16")
@@ -610,27 +633,35 @@ class Basin:
         # Get the landcover dataset
         pctForet, pctSolNu = self.get_land_cover(self.CPfishnet,
                                                  self._LC,
-                                                 "newCPid")
+                                                 self.n_cols,
+                                                 self.n_rows)
         if self._Waterbodies == self._Wetlands:
             # Get the lakes
             pctLacRiviere = self.get_water_cover(self._Waterbodies,
                                                  self.CPfishnet,
-                                                 self._DEM, "newCPid")
+                                                 self._DEM,
+                                                 self.n_cols,
+                                                 self.n_rows)
             pctMarais = pctLacRiviere.copy()
         else:
             # Get the lakes
             pctLacRiviere = self.get_water_cover(self._Waterbodies,
                                                  self.CPfishnet,
-                                                 self._DEM, "newCPid")
+                                                 self._DEM,
+                                                 self.n_cols,
+                                                 self.n_rows)
             # Get the marshes
             pctMarais = self.get_water_cover(self._Wetlands,
                                              self.CPfishnet,
-                                             self._DEM, "newCPid")
+                                             self._DEM,
+                                             self.n_cols,
+                                             self.n_rows)
         # Scale the percentages to make sure that they all sum up 100%
-        CP_shp = np.array(pctLacRiviere) + np.array(pctMarais)
-        CP_tif = np.array(pctForet) + np.array(pctSolNu)
-        pctSolNu = (np.array(pctSolNu)/CP_tif)*(100-CP_shp)
-        pctForet = (np.array(pctForet)/CP_tif)*(100-CP_shp)
+        CP_shp = pctLacRiviere + pctMarais
+        CP_tif = pctForet + pctSolNu
+        # np.multiply(np.divide(pctSolNu, CE_tif), (100-CE_shp))
+        pctSolNu = np.multiply(np.divide(pctSolNu, CP_tif), (100-CP_shp))
+        pctForet = np.multiply(np.divide(pctForet, CP_tif), (100-CP_shp))
         # Fix the nan values (if applicable)
         pctSolNu[np.isnan(pctSolNu)] = 0
         pctForet[np.isnan(pctForet)] = 0
@@ -663,10 +694,9 @@ class Basin:
                                                         self.rtable["downstreamCPs"].values,
                                                         self.rtable["upstreamCPs"].values,
                                                         self.CPfishnet["newCEid"].values,
-                                                        np.array(
-                                                            pctLacRiviere),
+                                                        pctLacRiviere,
                                                         pctForet,
-                                                        np.array(pctMarais),
+                                                        pctMarais,
                                                         pctSolNu,
                                                         self.CPfishnet["altitude"].values,
                                                         geometry["profondeurMin"].values,
@@ -748,12 +778,12 @@ class Basin:
         v_c = u_c.copy()
 
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
-        CP_fishnet.plot(ax=ax, column="cumulArea")
+        CP_fishnet.plot(ax=ax, column="cumulArea",)
         max_area = CP_fishnet["cumulArea"].max()
         idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
         CP_fishnet.index = CP_fishnet["newCPid"].values
         carreaux_partiels.index = CP_fishnet["newCPid"].values
-        for i, CP in CP_fishnet.iterrows():
+        for i, _ in CP_fishnet.iterrows():
             cp_aval = carreaux_partiels.loc[i, "idCPAval"]
             if cp_aval == 0:
                 p1[i-1, :] = [CP_fishnet.loc[i, "x_c"],
@@ -807,7 +837,7 @@ class Basin:
             path, abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
         self._CEgrid.SetProjection(proj.ExportToWkt())
         # self._CEgrid.SetProjection(ref_raster.GetProjection())
-        geo_transform = (xmin, self._dx, 0.0, ymax, 0.0, -self._dy)
+        geo_transform = (xmin, self._dx, 0.0, ymax, 0.0, (-1)*self._dy)
         self._CEgrid.SetGeoTransform(geo_transform)
         # band.FlushCache()
         band = self._CEgrid.GetRasterBand(1)

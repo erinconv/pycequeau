@@ -7,6 +7,7 @@ from shapely.geometry import Polygon
 from osgeo import gdal
 import geopandas as gpd
 import rasterstats as rs
+import warnings
 # from src.core import utils as u
 
 
@@ -338,6 +339,16 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet.index = range(1, len(CP_fishnet)+1)
     CP_fishnet["CPid"] = CP_fishnet.index.values
     CP_fishnet["Area"] = CP_fishnet.area
+
+    # Still find some pixels after dissolving them
+    mask_pixels = CP_fishnet["Area"] <= 3*abs(pixel_size_area)
+    CP_fishnet["Dissolve"] = 0
+    CP_fishnet.loc[mask_pixels, "Dissolve"] = 1
+    df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+    CP_fishnet = CP_fishnet[~mask_pixels]
+    df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+    CP_fishnet.loc[:, "CPid"] = range(1, len(CP_fishnet)+1)
+    CP_fishnet.index = range(1, len(CP_fishnet)+1)
     # df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     return CP_fishnet
 
@@ -393,7 +404,7 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
             # Replace the CPid value into the small CP
             idx, = np.where(CP_fishnet["CEid"] == CE["CEid"])
             CE_features = CP_fishnet.iloc[idx]
-            df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+            # df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
             # CE_features.iloc[idx_small, columns.index(
             #     "CPid")] = neighbors[idx_maxFAC[0]]
 
@@ -412,7 +423,7 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet = CP_fishnet.dissolve(by='normalized_geometry')
     CP_fishnet.index = CP_fishnet.index.rename("index")
     CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
+    CP_fishnet["CPid"] = CP_fishnet.index.values
     CP_fishnet = CP_fishnet.drop(columns=["geometry_str"])
     # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     # indexes_to_skip,processed_indexes = u.drop_duplicated_geometries(CP_fishnet["geometry"])
@@ -515,7 +526,21 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
                   CP_array: np.ndarray,
                   CE_array: np.ndarray,
                   ncols: float,
-                  nrows: float) -> tuple:
+                  nrows: float) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        FAC (str): _description_
+        CP_array (np.ndarray): _description_
+        CE_array (np.ndarray): _description_
+        ncols (float): _description_
+        nrows (float): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     # Renaming index to make sure it starts from 1
     CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
     CP_fishnet = CP_fishnet.sort_values(by=["CPid"])
@@ -611,7 +636,6 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
         # Mask the FAC based on this CP
         mask_CP = (CP == feat['CPid']).astype('uint8')
         # Apply mask
-        # mask_subFAC = subFAC*mask_CP
         # Get the outlet indexes for the CP
         outlet_row, outlet_col = np.unravel_index(
             np.argmax(subFAC*mask_CP), subFAC.shape)
@@ -629,10 +653,24 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
         # Add the CP where it discharges
         routing.loc[index, "inCPid"] = CP[inlet_row, inlet_col]
         routing.loc[index, "FAC"] = subFAC[outlet_row, outlet_col]
-        # if routing.loc[index, "CPid"] == routing.loc[index, "inCPid"]:
-        #     continue
-        # if routing.loc[index, "inCPid"] == 0:
-        #     continue
+        if routing.loc[index, "CPid"] == routing.loc[index, "inCPid"]:
+            outlet_point = routing.loc[index, "CPid"]
+        if routing.loc[index, "inCPid"] == 0:
+            continue
+    return routing
+
+
+def get_rtable(CP_fishnet: gpd.GeoDataFrame,
+               routing: pd.DataFrame):
+    """_summary_
+
+    Args:
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        routing (pd.DataFrame): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # *There are probably cases where a given CP drains into a non existence CP.
     # *So, here we make sure that we drop all the CP where this happens into the main data frame.
     # *This is because the CPs in the border can be so tiny that they do not account for the
@@ -682,18 +720,20 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
             rtable.iloc[i-1, columns.index("oldupstreams")] = upstreams_cps
             new_id_counter += len(idx_outlet)
             routing.loc[idx_outlet, "inCPid"] = -99999
-
     # Check if there is NAN values in the rtable
     idx_nan_inCP = rtable["oldCPid"].isnull()
     index_nan = rtable.index[idx_nan_inCP]
-    # Fill this nan values in the newCPid with a flag to keep tracking it in the next steps
-    # CP_fishnet.loc[index_zero_flow_in, "CPid"] = -9999
-    # rtable.loc[index_nan, "newCPid"] = -9999
-    rtable.loc[index_nan, "newCPid"] = index_nan
-    rtable.loc[index_nan, "oldCPid"] = routing.loc[index_nan, "CPid"]
-    # if len(index_drop) != 0:
-    #     CP_fishnet = CP_fishnet.drop(index=index_drop)
-    #     rtable = rtable.drop(index=index_drop)
+    if len(index_nan) > 0:
+        # warnings.warn(
+        #     f"The CPs {index_nan} drop water into non existent CP \n")
+        # warnings.warn(
+        #     "This might no be a problem. But it may be a source of error in the next steps \n")
+        # assert False, "Error found in the definition of routing function"
+        # Fill this nan values in the newCPid with a flag to keep tracking it in the next steps
+        # CP_fishnet.loc[index_zero_flow_in, "CPid"] = -9999
+        # rtable.loc[index_nan, "newCPid"] = -9999
+        rtable.loc[index_nan, "newCPid"] = index_nan
+        rtable.loc[index_nan, "oldCPid"] = index_zero_flow_in
     rtable['newCPid'] = rtable['newCPid'].astype('int')
     rtable['oldCPid'] = rtable['oldCPid'].astype('int')
     # idx = np.where()
@@ -721,15 +761,18 @@ def routing_table(CP_fishnet: gpd.GeoDataFrame,
 
 def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
                       CE_fishnet: gpd.GeoDataFrame,
-                      rtable: pd.DataFrame) -> gpd.GeoDataFrame:
+                      rtable: pd.DataFrame,
+                      routing: pd.DataFrame) -> gpd.GeoDataFrame:
     # Renumbering the CPs
-    CP_fishnet["newCEid"] = 0
     CP_fishnet["newCPid"] = 0
+    CP_fishnet["newCEid"] = 0
     CE_fishnet["newCEid"] = 0
     CE_track_list = []
-    rtable = rtable.sort_values(by=["oldCPid"])
     CP_fishnet = CP_fishnet.sort_values(by=["CPid"])
-    # CP_fishnet.indeẋ = range(1, len(CP_fishnet)+1)
+    CP_fishnet.index = CP_fishnet["CPid"].values
+    rtable = rtable.sort_values(by=["oldCPid"])
+    df = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+    rtable.index = rtable["oldCPid"].values
     # CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
     # CP_fishnet["newCPid"] = pd.to_numeric(,dtype_backend="Int64")
     # CP_fishnet["newCPid"] = rtable["newCPid"].values
@@ -737,8 +780,14 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
     # columns_rtable = rtable.columns.tolist()
     columns_CPfishnet = CP_fishnet.columns.tolist()
     columns_CEfishnet = CE_fishnet.columns.tolist()
+    idx_zero_inCP = routing["inCPid"] == 0
+    index_zero_flow_in = routing.index[idx_zero_inCP]
     # Iterate over the dataframe to rename CP fishnet
     for i, _ in CP_fishnet.iterrows():
+        # Check if the current CP drops into a non existent
+        # if i in index_zero_flow_in:
+        #     CP_fishnet.loc[idx_old, "newCPid"] = 0
+        #     continue
         # Find the index of the old CPid in the main dataframe
         index_routing = CP_fishnet["CPid"] == rtable.loc[i, "oldCPid"]
         idx_old = CP_fishnet.index[index_routing]
@@ -748,6 +797,7 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
         CP_fishnet.loc[idx_old, "newCPid"] = rtable.loc[i, "newCPid"]
     # Change the index in the main dataframe
     CP_fishnet.index = CP_fishnet["newCPid"].values
+    # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     # Sort values
     CP_fishnet = CP_fishnet.sort_values(by=["newCPid"])
     CP_fishnet["newCEid"] = np.array(CP_fishnet["newCEid"]).astype(int)
@@ -780,7 +830,7 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
     # CP_fishnet = CP_fishnet.sort_values(by=["newCPid"])
     # CP_fishnet["newCPid"] = range(1, len(CP_fishnet)+1)
     # CP_fishnet.index = range(1, len(CP_fishnet)+1)
-    df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
+    # df1 = pd.DataFrame(CP_fishnet.drop(columns='geometry'))
     return CP_fishnet, CE_fishnet
 
 
