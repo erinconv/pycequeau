@@ -3,7 +3,16 @@ import pandas as pd
 import os
 
 
-def clip_netcdf(nc_files_path: str, bounds: list, output_path: str):
+def clip_netcdf(nc_files_path: str,
+                bounds: list,
+                output_path: str):
+    """_summary_
+
+    Args:
+        nc_files_path (str): _description_
+        bounds (list): _description_
+        output_path (str): _description_
+    """
     nc_files_list = os.listdir(nc_files_path)
     nc_files_list = [i for i in nc_files_list if i.endswith(".nc")]
     nc_files_list_path = [os.path.join(nc_files_path, i)

@@ -41,16 +41,16 @@ from src.core import projections
 #         lambda row: explain_validity(row.geometry), axis=1)
 #     gdf.geometry = gdf.apply(
 #         lambda row: make_valid(row.geometry), axis=1)
-    # print(gdf)
-    # gdf.geometry.make_valid()
-    # print(make_valid(gdf["geometry"]))
-    # gdf.geometry = make_valid(gdf.geometry)
-    # return gdf
-    # gdf.to_file(raster_name.replace("tif","shp"))
-    # print(gpd_d)
-    # self._Basin = self._Basin.replace(".tif", ".shp")
-    # self._SubBasins = self._SubBasins.replace(".tif", ".shp")
-    # gpd_d.to_file(self._Basin)
+# print(gdf)
+# gdf.geometry.make_valid()
+# print(make_valid(gdf["geometry"]))
+# gdf.geometry = make_valid(gdf.geometry)
+# return gdf
+# gdf.to_file(raster_name.replace("tif","shp"))
+# print(gpd_d)
+# self._Basin = self._Basin.replace(".tif", ".shp")
+# self._SubBasins = self._SubBasins.replace(".tif", ".shp")
+# gpd_d.to_file(self._Basin)
 def polygonize_raster(raster_name: str):
     """_summary_
 
@@ -64,19 +64,20 @@ def polygonize_raster(raster_name: str):
     dst_layername = 'polygonized'
     drv = ogr.GetDriverByName("ESRI Shapefile")
     # Set the export name
-    dst_ds = drv.CreateDataSource(raster_name.replace(".tif",".shp"))
+    dst_ds = drv.CreateDataSource(raster_name.replace(".tif", ".shp"))
     # Define the spatial reference based on the TIF attributes
     sp_ref = osr.SpatialReference()
     epsg = projections.get_proj_code(src_ds)
     sp_ref.SetFromUserInput(epsg)
-    dst_layer = dst_ds.CreateLayer(dst_layername, srs = sp_ref )
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs=sp_ref)
     # Rasterize the object
     fld = ogr.FieldDefn("raster_val", ogr.OFTInteger)
     dst_layer.CreateField(fld)
     dst_field = dst_layer.GetLayerDefn().GetFieldIndex("raster_val")
-    gdal.Polygonize( srcband, None, dst_layer, dst_field, [], callback=None )
+    gdal.Polygonize(srcband, None, dst_layer, dst_field, [], callback=None)
 
-def fix_geometry(gdf: gpd.GeoDataFrame)->gpd.GeoDataFrame:
+
+def fix_geometry(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """_summary_
     https://gis.stackexchange.com/questions/430384/using-shapely-methods-explain-validity-and-make-valid-on-shapefile
     Args:
@@ -85,12 +86,14 @@ def fix_geometry(gdf: gpd.GeoDataFrame)->gpd.GeoDataFrame:
     Returns:
         gpd.GeoDataFrame: _description_
     """
-    gdf['validity'] = gdf.apply(lambda row: explain_validity(row.geometry), axis=1)
-    gdf.geometry = gdf.apply(lambda row: make_valid(row.geometry) if not row.geometry.is_valid == 'Valid Geometry' else row.geometry, axis=1)
+    gdf['validity'] = gdf.apply(
+        lambda row: explain_validity(row.geometry), axis=1)
+    gdf.geometry = gdf.apply(lambda row: make_valid(
+        row.geometry) if not row.geometry.is_valid == 'Valid Geometry' else row.geometry, axis=1)
     return gdf
 # def drop_duplicated_geometries(geoseries: gpd.GeoSeries):
 #     """
-#     taken from: 
+#     taken from:
 #     https://ml-gis-service.com/index.php/2021/09/24/toolbox-drop-duplicated-geometries-from-geodataframe/
 #     Function drops duplicated geometries from a geoseries. It works as follow:
 #         1. Take record from the dataset. Check it's index against list of indexes-to-skip. If it's not there then move to the next step.
@@ -262,6 +265,16 @@ def GetExtent(raster: gdal.Dataset):
 def regrid_CE(raster: gdal.Dataset,
               shp: ogr.DataSource,
               grid_size: int) -> gdal.Dataset:
+    """_summary_
+
+    Args:
+        raster (gdal.Dataset): _description_
+        shp (ogr.DataSource): _description_
+        grid_size (int): _description_
+
+    Returns:
+        gdal.Dataset: _description_
+    """
     xmin, xpixel, _, ymax, _, ypixel = raster.GetGeoTransform()
     width, height = raster.RasterXSize, raster.RasterYSize
     # transform = raster.GetGeoTransform()
@@ -296,6 +309,16 @@ def regrid_CE(raster: gdal.Dataset,
 def rasterize_feature(gdf: gpd.GeoDataFrame,
                       raster_name: str,
                       att: str) -> np.ndarray:
+    """_summary_
+
+    Args:
+        gdf (gpd.GeoDataFrame): _description_
+        raster_name (str): _description_
+        att (str): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
     # Get raster georeference info
     raster = gdal.Open(raster_name, gdal.GA_ReadOnly)
     transform = raster.GetGeoTransform()
@@ -636,7 +659,7 @@ def falls_in_extent(extent: tuple,
 
 def find_nearest(array: np.ndarray, value: float) -> np.ndarray:
     """_summary_
-
+    https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
     Args:
         array (np.ndarray): _description_
         value (float): _description_
@@ -644,7 +667,6 @@ def find_nearest(array: np.ndarray, value: float) -> np.ndarray:
     Returns:
         np.ndarray: _description_
     """
-    # https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
     # array = np.asarray(array)
     # idx = (np.abs(array - value)).argmin()
     return (np.abs(array - value)).argmin()

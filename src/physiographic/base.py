@@ -28,6 +28,16 @@ class Basin:
                  basin_name: str,
                  file_list: list,
                  *args) -> None:
+        """_summary_
+
+        Args:
+            project_folder (str): _description_
+            basin_name (str): _description_
+            file_list (list): _description_
+
+        Raises:
+            ValueError: _description_
+        """
         # Create project structure
         self._project_path = project_folder
         self.name = basin_name
@@ -145,13 +155,16 @@ class Basin:
         self._dx = self.n_cols*self.pixel_width
         self._dy = self.n_rows*self.pixel_height
 
+    @property
     def get_dimenssions(self):
         return [self._dx, self._dy]
 
+    @property
     def get_EPSG(self):
         return self._epsg
 
-    def _set_EPSG(self):
+    @get_EPSG.setter
+    def get_EPSG(self):
         self._epsg = ceqproj.get_proj_code(self._DEM)
 
     @classmethod
@@ -276,6 +289,13 @@ class Basin:
                   sub_basins: str,
                   watershed: str,
                   newSubBasins: str):
+        """_summary_
+
+        Args:
+            sub_basins (str): _description_
+            watershed (str): _description_
+            newSubBasins (str): _description_
+        """
         gdf1 = gpd.read_file(sub_basins)
         gdf2 = gpd.read_file(watershed)
         new_gdf = gpd.clip(gdf1, gdf2)
@@ -292,6 +312,13 @@ class Basin:
                   CEfishnet: str,
                   SubBasins: str,
                   CPfishnet: str):
+        """_summary_
+
+        Args:
+            CEfishnet (str): _description_
+            SubBasins (str): _description_
+            CPfishnet (str): _description_
+        """
         # Read in the shapefiles
         gdf1 = gpd.read_file(CEfishnet)
         gdf2 = gpd.read_file(SubBasins)
@@ -309,6 +336,8 @@ class Basin:
         gdf_union.to_file(CPfishnet)
 
     def create_CPfishnet(self):
+        """_summary_
+        """
         # Check if the file already exist
         if os.path.exists(self._CPfishnet):
             os.remove(self._CPfishnet)
@@ -324,6 +353,12 @@ class Basin:
                        self._CPfishnet)
 
     def create_CEfishnet(self, xoffset=0.0, yoffset=0.0):
+        """_summary_
+
+        Args:
+            xoffset (float, optional): _description_. Defaults to 0.0.
+            yoffset (float, optional): _description_. Defaults to 0.0.
+        """
         # Check if the file already exist
         if os.path.exists(self._CEfishnet):
             os.remove(self._CEfishnet)
@@ -729,6 +764,8 @@ class Basin:
         self.CPfishnet.to_file(self._CPfishnet)
 
     def create_bassinVersant_structure(self):
+        """_summary_
+        """
         # This structure will be stored as json format. This json format
         # will be easily translatet into .mat file for being read by Matlab
         # and also, will serve as one of the main input files in the OpenCEQUEAU
@@ -764,6 +801,11 @@ class Basin:
             json.dump(self.bassinVersant, outfile, indent=4)
 
     def plot_routing(self, area_th=0.01):
+        """_summary_
+
+        Args:
+            area_th (float, optional): _description_. Defaults to 0.01.
+        """
         # Centroinds
         CP_fishnet = gpd.read_file(self._CPfishnet)
         cp_struct_name = os.path.join(
@@ -808,6 +850,11 @@ class Basin:
         plt.show()
 
     def create_CEgrid(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         # Default no data value of the CAT raster
         ref_raster = gdal.Open(self._DEM, gdal.GA_ReadOnly)
         CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
@@ -849,6 +896,11 @@ class Basin:
         return data_array
 
     def create_CPgrid(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         # Get the CE and CP hps
         CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
         CP_shp = ogr.Open(self._CPfishnet, gdal.GA_ReadOnly)

@@ -6,11 +6,19 @@ from osgeo import gdal, ogr, osr
 from .units import (
     units_ERA,
     units_CORDEX
-    )
+)
 import sys
 
 
 def dict_netCDF(files_path: str) -> dict:
+    """_summary_
+
+    Args:
+        files_path (str): _description_
+
+    Returns:
+        dict: _description_
+    """
     # List files whitin the folder
     files_list = os.listdir(files_path)
     filtered_list = [os.path.join(files_path, i)
@@ -39,7 +47,7 @@ def get_CORDEX_Dataset(vars_dict: dict) -> xr.Dataset:
     ds = xr.Dataset()
     for var in keys:
         # Get the var name
-        
+
         # Check the data type to convert it to a commont data form
         # if vars_dict.get(var)[nc_file_var].dtype == "float64":
         #     # vars_dict.get(var)['lat'] = vars_dict.get(var)['lat'].astype(np.float32)
@@ -49,14 +57,11 @@ def get_CORDEX_Dataset(vars_dict: dict) -> xr.Dataset:
         #   ds = ds.merge(vars_dict.get(var))
         # Fix units
         dr = units_CORDEX(vars_dict.get(var))
-        nc_file_var =list(dr.keys())[0]
+        nc_file_var = list(dr.keys())[0]
         ds = ds.merge(dr)
         # Put attributes
         ds[nc_file_var].attrs = dr[nc_file_var].attrs
     return ds
-
-    
-    pass
 
 
 def get_ERA_Dataset(vars_dict: dict) -> xr.Dataset:
@@ -75,7 +80,7 @@ def get_ERA_Dataset(vars_dict: dict) -> xr.Dataset:
     ds = xr.Dataset()
     for var in keys:
         # Get the var name
-        
+
         # Check the data type to convert it to a commont data form
         # if vars_dict.get(var)[nc_file_var].dtype == "float64":
         #     # vars_dict.get(var)['lat'] = vars_dict.get(var)['lat'].astype(np.float32)
@@ -85,7 +90,7 @@ def get_ERA_Dataset(vars_dict: dict) -> xr.Dataset:
         #   ds = ds.merge(vars_dict.get(var))
         # Fix units
         dr = units_ERA(vars_dict.get(var))
-        nc_file_var =list(dr.keys())[0]
+        nc_file_var = list(dr.keys())[0]
         # print(dr)
         ds = ds.merge(dr)
         # Put attributes

@@ -12,8 +12,12 @@ from src.core import utils as u
 
 class Meteo:
     def __init__(self, bassinVersant: Basin) -> None:
+        """_summary_
+
+        Args:
+            bassinVersant (Basin): _description_
+        """
         self.basin_struct = bassinVersant
-        pass
 
     # def __init__(self, *args, **kwargs) -> None:
     #     if self._check_inputs(*args, **kwargs):
@@ -22,7 +26,17 @@ class Meteo:
     #         pass
 
     @classmethod
-    def cequeau_grid(cls, ds: xr.DataArray, basin_struct: Basin) -> xr.Dataset:
+    def cequeau_grid(cls, ds: xr.DataArray,
+                     basin_struct: Basin) -> xr.Dataset:
+        """_summary_
+
+        Args:
+            ds (xr.DataArray): _description_
+            basin_struct (Basin): _description_
+
+        Returns:
+            xr.Dataset: _description_
+        """
 
         grid = cls._cequeau_grid(ds, basin_struct)
 
@@ -85,6 +99,14 @@ class Meteo:
                        fishnet: ogr.DataSource,
                        grid_size: int,
                        **kwargs):
+        """_summary_
+
+        Args:
+            CEgrid (gdal.Dataset): _description_
+            watershed (ogr.DataSource): _description_
+            fishnet (ogr.DataSource): _description_
+            grid_size (int): _description_
+        """
         cls._stations_table(CEgrid,
                             watershed,
                             fishnet,
@@ -97,4 +119,11 @@ class Meteo:
                     ds: xr.DataArray,
                     CEgrid: gdal.Dataset,
                     stations_table: pd.DataFrame):
+        """_summary_
+
+        Args:
+            ds (xr.DataArray): _description_
+            CEgrid (gdal.Dataset): _description_
+            stations_table (pd.DataFrame): _description_
+        """
         cls._interpolation(CEgrid, CEgrid, stations_table)

@@ -55,6 +55,15 @@ def convert_coords_to_index(df: gpd.GeoDataFrame,
 
 def find_neighbors(gdf: gpd.GeoDataFrame,
                    id: str) -> gpd.GeoDataFrame:
+    """_summary_
+
+    Args:
+        gdf (gpd.GeoDataFrame): _description_
+        id (str): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
     # https://gis.stackexchange.com/questions/281652/finding-all-neighbors-using-geopandas
     # Drop the column if it exist
     if 'NEIGHBORS' in gdf.columns:
@@ -92,6 +101,16 @@ def find_neighbors(gdf: gpd.GeoDataFrame,
 def identify_small_CPs(CE_fishnet: gpd.GeoDataFrame,
                        CP_fishnet: gpd.GeoDataFrame,
                        thereshold: float):
+    """_summary_
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        thereshold (float): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Get the area of the CE grid
     CE_area = CE_fishnet.area[0]
     # Get area for each CP feature
@@ -356,6 +375,16 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
 def force_4CP(CE_fishnet: gpd.GeoDataFrame,
               CP_fishnet: gpd.GeoDataFrame,
               area_th: float) -> gpd.GeoDataFrame:
+    """_summary_
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        area_th (float): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
     # Explode the fishnet
     CP_fishnet = CP_fishnet.explode()
     CP_fishnet.index = CP_fishnet["CPid"].values
@@ -460,6 +489,16 @@ def force_4CP(CE_fishnet: gpd.GeoDataFrame,
 def mean_altitudes(CE_fishnet: gpd.GeoDataFrame,
                    CP_fishnet: gpd.GeoDataFrame,
                    DEM: str):
+    """_summary_
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        DEM (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Add altitude column to each dataset
     CE_fishnet = CE_fishnet.reindex(
         columns=CE_fishnet.columns.tolist() + ['altitude'])
@@ -763,6 +802,17 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
                       CE_fishnet: gpd.GeoDataFrame,
                       rtable: pd.DataFrame,
                       routing: pd.DataFrame) -> gpd.GeoDataFrame:
+    """_summary_
+
+    Args:
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        rtable (pd.DataFrame): _description_
+        routing (pd.DataFrame): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
     # Renumbering the CPs
     CP_fishnet["newCPid"] = 0
     CP_fishnet["newCEid"] = 0
@@ -835,6 +885,14 @@ def renumber_fishnets(CP_fishnet: gpd.GeoDataFrame,
 
 
 def get_downstream_CP(rtable: pd.DataFrame) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        rtable (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     # Create an empty table to store the values
     rtable.index = rtable["newCPid"].values
     downstreamCPs = pd.DataFrame(columns=["downstreamCPs"],
@@ -875,6 +933,14 @@ def get_downstream_CP(rtable: pd.DataFrame) -> pd.DataFrame:
 
 
 def outlet_routes(rtable: pd.DataFrame) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        rtable (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
 
     # Create the array to store the lists
     allroute_lists = pd.DataFrame(columns=["outletRoutes"],

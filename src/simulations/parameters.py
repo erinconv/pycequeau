@@ -13,6 +13,11 @@ from src.core import projections
 
 class Parameters:
     def __init__(self, bassinVersant: Basin) -> None:
+        """_summary_
+
+        Args:
+            bassinVersant (Basin): _description_
+        """
         self.ctp = {0}
         self.lac = 0
         self.surface = 0
@@ -20,6 +25,8 @@ class Parameters:
         pass
 
     def create_parameter_structure(self):
+        """_summary_
+        """
         self.parametres = {"option": self.option,
                            "sol": self.sol,
                            "solInitial": self.solInitial,
@@ -35,6 +42,11 @@ class Parameters:
         outfile.close()
 
     def set_option(self, values: np.ndarray):
+        """_summary_
+
+        Args:
+            values (np.ndarray): _description_
+        """
         # The default values can be changed using the method set_maximum_insolation_day
         self.option = {"ipassim": 24,
                        "moduleFonte": values[0],
@@ -44,10 +56,20 @@ class Parameters:
                        "joeva": 80}
 
     def set_maximum_insolation_day(self, jonei: int):
+        """_summary_
+
+        Args:
+            jonei (int): _description_
+        """
         self.option["jonei"] = jonei
         self.option["joeva"] = jonei
 
     def set_sol(self, values: np.ndarray):
+        """_summary_
+
+        Args:
+            values (np.ndarray): _description_
+        """
         self.sol = {"cin_s": values[0],
                     "cvmar": values[1],
                     "cvnb_s": values[2],
@@ -93,6 +115,11 @@ class Parameters:
         return y_int
 
     def set_solinitial(self, values: np.ndarray):
+        """_summary_
+
+        Args:
+            values (np.ndarray): _description_
+        """
         self.solInitial = {"hsini": values[0],
                            "hnini": values[1],
                            "hmini": values[2],
@@ -102,15 +129,63 @@ class Parameters:
                            }
 
     def set_transfert(self, values: np.ndarray):
-        # TODO: Need to find the way to automatically compute the time of concetration
-        self._compute_zn()
-        self.transfert = {"exxkt": values[0],
-                          "zn": values[1]}
-
-    # TODO: This will use the input data from the basin structure.
-    def _compute_zn(self, area_th=0.01):
         """_summary_
-        This method will compute the concentration time of the given basin.
+
+        Args:
+            values (np.ndarray): _description_
+        """
+        # self.create_cequeau_stream_network()
+        self.transfert = {"exxkt": values[0],
+                          "zn": self.tc_kirpich()}
+
+    def tc_kirpich(self):
+        r"""
+        This function computes the time of concentration in the basin 
+        based on the CEQUEAU structure
+
+        This module uses the Kirpich (1940) formulation:
+
+        .. math::
+
+            t_{c} = 0.0195 \left ( \frac{L}{\sqrt{S}} \right )^{0.77}
+
+        Where :math:`L` is the length of the main channel in :math:`m`, :math:`S` is the mean 
+        slope of the basin in  :math:`\text{m m}^{-1}` which is computed as follows:
+
+        .. math::
+
+            S = \frac{H_{max} - H_{min}}{L}
+
+        :math:`t_{c}` is given in minutes which is subsequently converted into days
+
+        Returns:
+            float: _description_
+        """
+        # Open the
+        cp_struct_name = os.path.join(self.basin_structure.project_path,
+                                      "results",
+                                      "carreauxPartiels.csv")
+        carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
+        # find the difference between the highest and lowest point in altitute
+        hmin = carreaux_partiels["altitudeMoy"].min()
+        hmax = carreaux_partiels["altitudeMoy"].max()
+        dhmax = hmax - hmin
+        l_main_channel = self.create_cequeau_stream_network()
+        s_basin = dhmax/l_main_channel
+        # The time of concentration is given in minutes
+        tc = 0.0195*(l_main_channel/np.sqrt(s_basin))**0.77
+        # Convert to days
+        tc = tc/1440
+        return tc
+
+    def create_cequeau_stream_network(self, area_th=0.01) -> float:
+        """_summary_
+
+        Args:
+            area_th (float, optional): _description_. Defaults to 0.01.
+
+        Returns:
+            float: _description_
         """
         # Open the
         CP_fishnet = gpd.read_file(self.basin_structure.cp_fishnet_name)
@@ -120,16 +195,11 @@ class Parameters:
         carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
         CP_fishnet["x_c"] = CP_fishnet.centroid.x
         CP_fishnet["y_c"] = CP_fishnet.centroid.y
-        # Define the pair of coordinates
-        # p1 = pd.DataFrame(columns=["X", "Y"])
-        # p2 = pd.DataFrame(columns=["X", "Y"])
 
-        # p1 = np.zeros((len(CP_fishnet), 2), dtype=Point)
-        # p1 = p1.copy()
-
+        # Array to store the line shape
         lines = np.zeros(len(CP_fishnet), dtype=LineString)
         max_area = CP_fishnet["cumulArea"].max()
-        idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
+        # idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
         CP_fishnet.index = CP_fishnet["newCPid"].values
         carreaux_partiels.index = CP_fishnet["newCPid"].values
         df_line = pd.DataFrame(columns=["names", "cumulArea"],
@@ -186,7 +256,7 @@ class Parameters:
         #           scale_units='xy',
         #           angles='xy',
         #           scale=1)
-        return False
+        return max(lengths)
 
     def set_fonte(self, values: np.ndarray, model: int):
         # Parameters for the cequeau model

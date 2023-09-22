@@ -15,7 +15,6 @@ def create_grid_var(ds: xr.Dataset,
                     var_name: str,
                     datenum: list) -> xr.Dataset:
     """_summary_
-    j, i,
     Args:
         ds (xr.Dataset): _description_
         idx (np.ndarray): _description_
@@ -217,6 +216,15 @@ def create_station_table(CEregrid: gdal.Dataset,
 
 def _appendCEgrid(ds: xr.Dataset,
                   CEregrid: gdal.Dataset) -> xr.DataArray:
+    """_summary_
+
+    Args:
+        ds (xr.Dataset): _description_
+        CEregrid (gdal.Dataset): _description_
+
+    Returns:
+        xr.DataArray: _description_
+    """
     grid = CEregrid.ReadAsArray().astype(np.float16)
     grid[grid == 0] = np.nan
     dr = xr.Dataset({

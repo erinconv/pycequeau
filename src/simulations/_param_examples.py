@@ -2,6 +2,11 @@ import numpy as np
 
 
 def send_values_test() -> tuple:
+    """_summary_
+
+    Returns:
+        tuple: _description_
+    """
 
     flow_parameters = [
         # CIN Infiltration coefficient from SOL (upper) reservoir to the NAPPE (lower) reservoir
@@ -117,10 +122,12 @@ def send_values_test() -> tuple:
     # Convert the parameter list into the required format for the CEQUEAU model
     flow_parameters = np.array(flow_parameters, dtype=np.float32).tolist()
     evapo_parameters = np.array(evapo_parameters, dtype=np.float32).tolist()
-    initial_conditions = np.array(initial_conditions, dtype=np.float32).tolist()
+    initial_conditions = np.array(
+        initial_conditions, dtype=np.float32).tolist()
     snow_parameters = np.array(snow_parameters, dtype=np.float32).tolist()
     transferts = np.array(transferts, dtype=np.float32).tolist()
-    temperature_params = np.array(temperature_params, dtype=np.float32).tolist()
+    temperature_params = np.array(
+        temperature_params, dtype=np.float32).tolist()
     simulation_options = np.array(simulation_options, dtype=np.int8).tolist()
     return flow_parameters, evapo_parameters, initial_conditions, snow_parameters, simulation_options, transferts, temperature_params
 

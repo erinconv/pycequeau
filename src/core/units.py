@@ -5,6 +5,14 @@ import pandas as pd
 
 
 def units_CORDEX(ds: xr.Dataset):
+    """_summary_
+
+    Args:
+        ds (xr.Dataset): _description_
+
+    Returns:
+        _type_: _description_
+    """
     var_name = list(ds.keys())[0]
     if var_name == "pr":
         # from m d-1 to mm d-1
@@ -56,6 +64,14 @@ def units_CORDEX(ds: xr.Dataset):
 
 
 def units_ERA(ds: xr.Dataset):
+    """_summary_
+
+    Args:
+        ds (xr.Dataset): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # List the variable names
     var_name = list(ds.keys())[0]
     if var_name == "tp":
