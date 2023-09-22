@@ -70,6 +70,12 @@ class Parameters:
         Args:
             values (np.ndarray): _description_
         """
+        # Open the carreaux entier
+        carreux_entier_name = os.path.join(self.basin_structure.project_path,
+                                           "results",
+                                           "carreauxEntiers.csv")
+        CE_df = pd.read_csv(carreux_entier_name, index_col=0)
+        impermeable = CE_df["pctImpermeable"].to_list()
         self.sol = {"cin_s": values[0],
                     "cvmar": values[1],
                     "cvnb_s": values[2],
@@ -84,7 +90,7 @@ class Parameters:
                     "hpot_s": values[11],
                     "hsol_s": values[12],
                     "hrimp_s": values[13],
-                    "tri_s": values[14],
+                    "tri_s": impermeable,
                     "xla": self._compute_xla(),
                     }
 
@@ -251,11 +257,6 @@ class Parameters:
                                     "geographic",
                                     "streams_cequeau.shp")
         gpdf_line.to_file(streams_file)
-        # ax.quiver(p1[idx_small_area, 0], p1[idx_small_area, 1],
-        #           u_c[idx_small_area], v_c[idx_small_area],
-        #           scale_units='xy',
-        #           angles='xy',
-        #           scale=1)
         return max(lengths)
 
     def set_fonte(self, values: np.ndarray, model: int):

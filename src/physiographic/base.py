@@ -522,6 +522,9 @@ class Basin:
         # Delete temporary files
         os.remove(shp_name.replace(".shp", "2.shp"))
         os.remove(shp_name.replace(".shp", ".tif"))
+        if np.amax(water) > 100:
+            assert False, "Something whent wrong"
+
         return water
 
     @classmethod
@@ -529,7 +532,8 @@ class Basin:
                        gdf: gpd.GeoDataFrame,
                        LC_name: str,
                        ncols: int,
-                       nrows: int) -> tuple:
+                       nrows: int,
+                       attr: str,) -> tuple:
         """_summary_
 
         Args:
@@ -542,26 +546,37 @@ class Basin:
             tuple: _description_
         """
         #
-
+        gdf = gdf.sort_values(by=attr)
         zonal_stats = rs.zonal_stats(gdf.geometry,
                                      LC_name,
                                      categorical=True)
 
         df_stats = pd.DataFrame(zonal_stats)
-        col_vals = np.array(df_stats.columns)
+        col_vals = np.trim_zeros(np.sort(df_stats.columns))
+        df_stats = df_stats.loc[:, col_vals]
+        df_stats = df_stats.fillna(0)
         # Get the indexes of the forest and bare soil
         idx_forest = (col_vals >= 1) & (col_vals <= 6)
-        idx_sol_nu = (col_vals >= 7) & (col_vals <= 13)
-        forest_df = df_stats.iloc[:, idx_forest]
+
+        idx_sol_nu = ((col_vals >= 7) & (col_vals <= 13)) | ((
+            col_vals >= 15) & (col_vals <= 17))
+        idx_wetland = col_vals == 14
+        idx_water = col_vals == 18
+        # Get the impermeable surface
+        idx_tri_s = col_vals == 16
+        forest_df = df_stats.loc[:, idx_forest]
         sol_nu_df = df_stats.loc[:, idx_sol_nu]
-        # Fill nan to zero
-        forest_df = forest_df.fillna(0)
-        sol_nu_df = sol_nu_df.fillna(0)
+        wetlands_df = df_stats.loc[:, idx_wetland]
+        water_df = df_stats.loc[:, idx_water]
+        tri_df = df_stats.loc[:, idx_tri_s]
         # Compute the percentage of forest and bare soil
         size_ce = ncols*nrows
         pctForet = forest_df.sum(axis=1).values/size_ce*100
         pctSolNu = sol_nu_df.sum(axis=1).values/size_ce*100
-        return pctForet, pctSolNu
+        pctWater = water_df.sum(axis=1).values/size_ce*100
+        pctWetlands = wetlands_df.sum(axis=1).values/size_ce*100
+        pctImpermeable = tri_df.sum(axis=1).values/size_ce*100
+        return pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable
 
     def carreauxEntiers_struct(self) -> None:
         """_summary_
@@ -579,40 +594,21 @@ class Basin:
         # self.CPfishnet = CPfishnet
         # self.CEfishnet = CEfishnet
         # Get the landcover dataset
-        pctForet, pctSolNu = self.get_land_cover(self.CEfishnet,
-                                                 self._LC,
-                                                 self.n_cols,
-                                                 self.n_rows)
-        # Check if there are different files for water bodies
-        if self._Waterbodies == self._Wetlands:
-            # Get the lakes
-            pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                                                 self.CEfishnet,
-                                                 self._DEM,
-                                                 self.n_cols,
-                                                 self.n_rows)
-            # Get the same value to the marais
-            pctMarais = pctLacRiviere.copy()
-        else:
-            pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                                                 self.CEfishnet,
-                                                 self._DEM,
-                                                 self.n_cols,
-                                                 self.n_rows)
-            # Get the marshes
-            pctMarais = self.get_water_cover(self._Wetlands,
-                                             self.CEfishnet,
-                                             self._DEM,
-                                             self.n_cols,
-                                             self.n_rows)
+        self.CEfishnet.index = self.CEfishnet["newCEid"].values
+        pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CEfishnet,
+                                                                                        self._LC,
+                                                                                        self.n_cols,
+                                                                                        self.n_rows,
+                                                                                        "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
-        CE_shp = pctLacRiviere + pctMarais
-        CE_tif = pctForet + pctSolNu
-        pctSolNu = np.multiply(np.divide(pctSolNu, CE_tif), (100-CE_shp))
-        pctForet = np.multiply(np.divide(pctForet, CE_tif), 100-CE_shp)
-        # Fix the nan values
-        pctSolNu[np.isnan(pctSolNu)] = 0
-        pctForet[np.isnan(pctForet)] = 0
+        total = pctForet + pctSolNu + pctWater + pctWetlands  # This is 100%
+        remain = 100 - total
+        remain[remain < 0] = 0
+        pctForet = np.divide(pctForet, total)*100
+        pctSolNu = np.divide(pctSolNu, total)*100
+        pctWater = np.divide(pctWater, total)*100
+        pctWetlands = np.divide(pctWetlands, total)*100
+
         # Drop the non data CEs
         self.CEfishnet = self.CEfishnet[self.CEfishnet["newCEid"] != 0]
         # Append the i,j to the CE_fishnet
@@ -624,16 +620,17 @@ class Basin:
         # Create the carreauxEntier dataset
         self.carreauxEntiers = pd.DataFrame(columns=["CEid", "i", "j", "pctLacRiviere",
                                                      "pctForet", "pctMarais", "pctSolNu",
-                                                     "altitude"],
+                                                     "altitude", "pctImpermeable"],
                                             index=coordinates.index,
                                             data=np.c_[coordinates["CEid"].values,
                                                        coordinates["i"].values,
                                                        coordinates["j"].values,
-                                                       pctLacRiviere,
+                                                       pctWater,
                                                        pctForet,
-                                                       pctMarais,
+                                                       pctWetlands,
                                                        pctSolNu,
-                                                       self.CEfishnet["altitude"].values]
+                                                       self.CEfishnet["altitude"].values,
+                                                       pctImpermeable]
                                             )
         # Change the values that must be integer types
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
@@ -666,43 +663,24 @@ class Basin:
         # short script that gives the new CP code (ie 65,66,67,68) from each CE
         codes = CPs.get_codes(self.CPfishnet)
         # Get the landcover dataset
-        pctForet, pctSolNu = self.get_land_cover(self.CPfishnet,
-                                                 self._LC,
-                                                 self.n_cols,
-                                                 self.n_rows)
-        if self._Waterbodies == self._Wetlands:
-            # Get the lakes
-            pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                                                 self.CPfishnet,
-                                                 self._DEM,
-                                                 self.n_cols,
-                                                 self.n_rows)
-            pctMarais = pctLacRiviere.copy()
-        else:
-            # Get the lakes
-            pctLacRiviere = self.get_water_cover(self._Waterbodies,
-                                                 self.CPfishnet,
-                                                 self._DEM,
-                                                 self.n_cols,
-                                                 self.n_rows)
-            # Get the marshes
-            pctMarais = self.get_water_cover(self._Wetlands,
-                                             self.CPfishnet,
-                                             self._DEM,
-                                             self.n_cols,
-                                             self.n_rows)
+        pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CPfishnet,
+                                                                                        self._LC,
+                                                                                        self.n_cols,
+                                                                                        self.n_rows,
+                                                                                        "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
-        CP_shp = pctLacRiviere + pctMarais
-        CP_tif = pctForet + pctSolNu
-        # np.multiply(np.divide(pctSolNu, CE_tif), (100-CE_shp))
-        pctSolNu = np.multiply(np.divide(pctSolNu, CP_tif), (100-CP_shp))
-        pctForet = np.multiply(np.divide(pctForet, CP_tif), (100-CP_shp))
-        # Fix the nan values (if applicable)
-        pctSolNu[np.isnan(pctSolNu)] = 0
-        pctForet[np.isnan(pctForet)] = 0
+        total = pctForet + pctSolNu + pctWater + pctWetlands  # This is 100%
+        remain = 100 - total
+        remain[remain < 0] = 0
+        pctForet = np.divide(pctForet, total)*100
+        pctSolNu = np.divide(pctSolNu, total)*100
+        pctWater = np.divide(pctWater, total)*100
+        pctWetlands = np.divide(pctWetlands, total)*100
+
+        # Scale the percentages to make sure that they all sum up 100%
         # Cumulate the variables
         cumulates = CPs.cumulate_variables(
-            self.outlet_routes, pctForet, pctLacRiviere, pctMarais)
+            self.outlet_routes, pctForet, pctWater, pctWetlands)
         # Drop the non data CPs
         # self.CPfishnet = self.CPfishnet[self.CPfishnet["newCPid"] != 0]
         # Get river geometry
@@ -719,7 +697,7 @@ class Basin:
                                                       "pctSolNu", "altitudeMoy", "profondeurMin",
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
-                                                      "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont"],
+                                                      "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont", "pctImpermeable"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -729,9 +707,9 @@ class Basin:
                                                         self.rtable["downstreamCPs"].values,
                                                         self.rtable["upstreamCPs"].values,
                                                         self.CPfishnet["newCEid"].values,
-                                                        pctLacRiviere,
+                                                        pctWater,
                                                         pctForet,
-                                                        pctMarais,
+                                                        pctWetlands,
                                                         pctSolNu,
                                                         self.CPfishnet["altitude"].values,
                                                         geometry["profondeurMin"].values,
@@ -742,6 +720,7 @@ class Basin:
                                                         cumulates["cumulPctSuperficieLacsAmont"].values,
                                                         cumulates["cumulPctSuperficieMaraisAmont"].values,
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
+                                                        pctImpermeable
                                                         ])
         # Change the values that must be integer types
         self.carreauxPartiels["idCE"] = np.array(
