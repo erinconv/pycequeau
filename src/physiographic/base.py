@@ -531,8 +531,6 @@ class Basin:
     def get_land_cover(cls,
                        gdf: gpd.GeoDataFrame,
                        LC_name: str,
-                       ncols: int,
-                       nrows: int,
                        attr: str,) -> tuple:
         """_summary_
 
@@ -550,18 +548,25 @@ class Basin:
         zonal_stats = rs.zonal_stats(gdf.geometry,
                                      LC_name,
                                      categorical=True)
-
+        # Get the pixel size of the land cover raster
+        raster = gdal.Open(LC_name)
+        gt = raster.GetGeoTransform()
+        pixelSizeX = gt[1]
+        pixelSizeY = gt[5]
+        # Get the the coefficient to convert from number of pixels to area in m2
+        pixel_area_coeff = abs(pixelSizeX*pixelSizeY)
+        # Find the values of each land category
         df_stats = pd.DataFrame(zonal_stats)
-        col_vals = np.trim_zeros(np.sort(df_stats.columns))
+        col_vals = df_stats.columns.values
         df_stats = df_stats.loc[:, col_vals]
         df_stats = df_stats.fillna(0)
         # Get the indexes of the forest and bare soil
         idx_forest = (col_vals >= 1) & (col_vals <= 6)
-
         idx_sol_nu = ((col_vals >= 7) & (col_vals <= 13)) | ((
             col_vals >= 15) & (col_vals <= 17))
         idx_wetland = col_vals == 14
-        idx_water = col_vals == 18
+        # Label 0 is water that is not in the land (mostly sea water and stuaries)
+        idx_water = (col_vals == 0) | (col_vals == 18)
         # Get the impermeable surface
         idx_tri_s = col_vals == 16
         forest_df = df_stats.loc[:, idx_forest]
@@ -570,12 +575,17 @@ class Basin:
         water_df = df_stats.loc[:, idx_water]
         tri_df = df_stats.loc[:, idx_tri_s]
         # Compute the percentage of forest and bare soil
-        size_ce = ncols*nrows
-        pctForet = forest_df.sum(axis=1).values/size_ce*100
-        pctSolNu = sol_nu_df.sum(axis=1).values/size_ce*100
-        pctWater = water_df.sum(axis=1).values/size_ce*100
-        pctWetlands = wetlands_df.sum(axis=1).values/size_ce*100
-        pctImpermeable = tri_df.sum(axis=1).values/size_ce*100
+        size_carreaux = gdf.area.values
+        pctForet = pixel_area_coeff * \
+            forest_df.sum(axis=1).values/size_carreaux*100
+        pctSolNu = pixel_area_coeff * \
+            sol_nu_df.sum(axis=1).values/size_carreaux*100
+        pctWater = pixel_area_coeff * \
+            water_df.sum(axis=1).values/size_carreaux*100
+        pctWetlands = pixel_area_coeff * \
+            wetlands_df.sum(axis=1).values/size_carreaux*100
+        pctImpermeable = pixel_area_coeff * \
+            tri_df.sum(axis=1).values/size_carreaux*100
         return pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable
 
     def carreauxEntiers_struct(self) -> None:
@@ -597,8 +607,6 @@ class Basin:
         self.CEfishnet.index = self.CEfishnet["newCEid"].values
         pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CEfishnet,
                                                                                         self._LC,
-                                                                                        self.n_cols,
-                                                                                        self.n_rows,
                                                                                         "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
         total = pctForet + pctSolNu + pctWater + pctWetlands  # This is 100%
@@ -608,7 +616,6 @@ class Basin:
         pctSolNu = np.divide(pctSolNu, total)*100
         pctWater = np.divide(pctWater, total)*100
         pctWetlands = np.divide(pctWetlands, total)*100
-
         # Drop the non data CEs
         self.CEfishnet = self.CEfishnet[self.CEfishnet["newCEid"] != 0]
         # Append the i,j to the CE_fishnet
@@ -646,6 +653,7 @@ class Basin:
         """
         # Start by sorting the values with in the dataframe
         self.CPfishnet = self.CPfishnet.sort_values(by="newCPid")
+        self.CPfishnet.index = self.CPfishnet["newCPid"].values
         # Open the CE and fishnet shp
         # * Temporary. The real instruction is in the previous routine
         # self.CEfishnet  = gpd.read_file(self._CEfishnet)
@@ -665,9 +673,7 @@ class Basin:
         # Get the landcover dataset
         pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CPfishnet,
                                                                                         self._LC,
-                                                                                        self.n_cols,
-                                                                                        self.n_rows,
-                                                                                        "newCEid")
+                                                                                        "newCPid")
         # Scale the percentages to make sure that they all sum up 100%
         total = pctForet + pctSolNu + pctWater + pctWetlands  # This is 100%
         remain = 100 - total
@@ -676,7 +682,6 @@ class Basin:
         pctSolNu = np.divide(pctSolNu, total)*100
         pctWater = np.divide(pctWater, total)*100
         pctWetlands = np.divide(pctWetlands, total)*100
-
         # Scale the percentages to make sure that they all sum up 100%
         # Cumulate the variables
         cumulates = CPs.cumulate_variables(
