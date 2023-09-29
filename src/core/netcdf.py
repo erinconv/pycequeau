@@ -1,4 +1,5 @@
 import xarray as xr
+import numpy as np
 import pandas as pd
 import os
 
@@ -54,3 +55,19 @@ def clip_netcdf(nc_files_path: str,
         if os.path.isfile(path):
             os.remove(path)
         sliced_nc.to_netcdf(path)
+
+
+def intermidiate_interpolation(ds: xr.Dataset, scale: int):
+    lon = ds["lon"].values
+    lat = ds["lat"].values
+    dx_original = lon[1] - lon[0]
+    dy_original = lat[1] - lat[0]
+    # Get the objectvie dx dy
+    dx = dx_original/scale
+    dy = dy_original/scale
+    # Create new vector for lat lon
+    lon_objective = np.arange(lon[0], lon[-1], dx)
+    lat_objective = np.arange(lat[0], lat[-1], dy)
+    dsi = ds.interp(time=ds["time"], lat=lat_objective,
+                    lon=lon_objective, method="nearest")
+    return dsi
