@@ -3,10 +3,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - gdal
+  - gdal=3.0.2
   - python=3.7
   - pyproj
   - xarray
+  - pytest
   - scipy
   - autopep8
   - matplotlib

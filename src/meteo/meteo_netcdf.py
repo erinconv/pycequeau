@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import os
 import numpy as np
 import pandas as pd
 import xarray as xr
-import os
+import geopandas as gpd
+from shapely.geometry import Point
 from osgeo import gdal, ogr
-from .base import Meteo
 from src.core import projections
 from src.core import manage_files
 from src.physiographic.base import Basin
 from src.core import utils as u
+from .base import Meteo
 from ._stations import (
     interpolation_netCDF,
     create_station_table,
@@ -39,6 +41,8 @@ class StationNetCDF(Meteo):
         # Convert from km2 to m2
         CE_area = self.basin_struct.bassinVersant["superficieCE"]*1e6
         self.basin_struct.set_dimensions(np.sqrt(CE_area), np.sqrt(CE_area))
+        self.lon_utm = None
+        self.lat_utm = None
 
     @classmethod
     def charge_CORDEX_Meteo(cls, bassinVersant: Basin, vars_path: str) -> StationNetCDF:
@@ -55,7 +59,6 @@ class StationNetCDF(Meteo):
         # Construct object
         obj = cls(bassinVersant, ds)
         return obj
-        pass
 
     @ classmethod
     def charge_ERA_Meteo(cls, bassinVersant: Basin, vars_path: str) -> StationNetCDF:
@@ -109,52 +112,60 @@ class StationNetCDF(Meteo):
             # break
         return dr
 
-    def interpolation(self, method: str) -> xr.DataArray:
+    def interpolation(self, method: str,
+                      name_meteo_grid_file="meteo_grid_points.shp") -> xr.DataArray:
         """_summary_
 
         Args:
             method (str): _description_
+            name_meteo_grid_file (str): _description_
 
         Returns:
             xr.DataArray: _description_
         """
         # Get stations table
-        self.stations_table()
-        # TODO: Allow to choose btween different options
+        self.stations_table(name_meteo_grid_file)
+        # TODO: Allow to choose between different options
         dsi = interpolation_netCDF(self.ds,
-                                   self.basin_struct._CEgrid,
+                                   self.basin_struct.get_CEgrid,
                                    self.table,
                                    method)
         return dsi
 
-    def stations_table(self):
+    def stations_table(self, name_meteo_grid_file: str):
         """_summary_
         """
+        # Open DEM to use it below
+        DEM = gdal.Open(self.basin_struct.DEM, gdal.GA_ReadOnly)
+        epsg_dem = projections.get_proj_code(DEM)
         # Create the CEgrid file
         CE_array = self.basin_struct.create_CEgrid()
+        # CE_array = np.flipud(CE_array)
         # Open the shp file from the basin structure
-        watershed = ogr.Open(self.basin_struct._Basin.replace(
+        watershed = ogr.Open(self.basin_struct.Basin.replace(
             ".tif", ".shp"), gdal.GA_ReadOnly)
         # Get x-y pairs
         xy_pair = get_netCDF_grids(self.ds,
-                                   self.basin_struct._CEgrid,
+                                   DEM,
                                    watershed)
         # Conveert coordinates
-        epsg_dem = projections.get_proj_code(self.basin_struct._CEgrid)
-        self.lat_utm, self.lon_utm = projections.latlon_to_utm(
-            xy_pair[:, 0],
-            xy_pair[:, 1],
+        self.lon_utm, self.lat_utm = projections.latlon_to_utm(
+            xy_pair[:, 1],  # -> Lon
+            xy_pair[:, 0],  # -> Lat
             epsg_dem)
-        # Open DEM to use it below
-        DEM = gdal.Open(self.basin_struct._DEM, gdal.GA_ReadOnly)
+
         # Create stations_table
-        self.table = create_station_table(self.basin_struct._CEgrid,
+        self.table = create_station_table(self.basin_struct.get_CEgrid,
                                           DEM,
-                                          self.lat_utm,
                                           self.lon_utm,
+                                          self.lat_utm,
                                           xy_pair)
-        # Export stations table grid points as csv
-        # TODO: Export in the future as shp file
+        point = [Point(x, y)
+                 for y, x in zip(self.table["lat_utm"], self.table["lon_utm"])]
+        # Export stations table grid points as shp
+        gpdf_table = gpd.GeoDataFrame(self.table,
+                                      geometry=point,
+                                      crs=epsg_dem)
         file_name = os.path.join(
-            self.basin_struct._project_path, "geographic", "meteo_stations.csv")
-        self.table.to_csv(file_name, index=False)
+            self.basin_struct.project_path, "geographic", name_meteo_grid_file)
+        gpdf_table.to_file(file_name)

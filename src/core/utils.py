@@ -239,7 +239,7 @@ def get_altitude_point(DEM: gdal.Dataset,
     # xmin, xmax, ymin, ymax, xpixel, ypixel = GetExtent(DEM)
     DEM_array = DEM.ReadAsArray()
     altitudes = []
-    for x, y in zip(lat_utm, lon_utm):
+    for y, x in zip(lat_utm, lon_utm):
         col = int((x-np.amin(xtup))/ptup[0])
         row = int((np.amax(ytup)-y)/(-ptup[1]))
         if col < 0 or row < 0:
@@ -640,7 +640,8 @@ def falls_in_extent(extent: tuple,
         np.ndarray: _description_
     """
     # Extract the extent from the given values
-    y_ext, x_ext = extent
+    x_ext, y_ext = extent
+    # (lon, lat) -> (x, y)
     xy_pairs = np.c_[list(itertools.product(x, y))]
     idx, = np.where((xy_pairs[:, 0] <= np.amin(x_ext)) |
                     (xy_pairs[:, 0] >= np.amax(x_ext)) |

@@ -75,6 +75,18 @@ class Basin:
         # self._SubBasins = None
 
     @property
+    def Basin(self):
+        return self._Basin
+
+    @property
+    def DEM(self):
+        return self._DEM
+
+    @property
+    def get_CEgrid(self):
+        return self._CEgrid
+
+    @property
     def cp_fishnet_name(self):
         return self._CPfishnet
 
@@ -597,12 +609,6 @@ class Basin:
         CE_Array = self.create_CEgrid()
         # Find i,j coordinates
         coordinates = CEs.find_grid_coordinates(CE_Array)
-        # Open the CE and fishnet shp
-        # * Temporary. The real instruction is in the previous routine
-        # CEfishnet = gpd.read_file(self._CEfishnet)
-        # CPfishnet = gpd.read_file(self._CPfishnet)
-        # self.CPfishnet = CPfishnet
-        # self.CEfishnet = CEfishnet
         # Get the landcover dataset
         self.CEfishnet.index = self.CEfishnet["newCEid"].values
         pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CEfishnet,
@@ -654,17 +660,6 @@ class Basin:
         # Start by sorting the values with in the dataframe
         self.CPfishnet = self.CPfishnet.sort_values(by="newCPid")
         self.CPfishnet.index = self.CPfishnet["newCPid"].values
-        # Open the CE and fishnet shp
-        # * Temporary. The real instruction is in the previous routine
-        # self.CEfishnet  = gpd.read_file(self._CEfishnet)
-        # self.CPfishnet = gpd.read_file(self._CPfishnet)
-        # Open the route table and outlet
-        # # *This is temporaty too
-        # self.rtable = pd.read_csv(os.path.join(self._project_path, "geographic", "rtable.csv"))
-        # self.outlet_routes = np.genfromtxt(os.path.join(self._project_path, "geographic", "outlet_routes.csv"),delimiter=",")
-        # Drop the first row
-        # self.rtable = self.rtable.drop(index=0)
-        # Get the landcover dataset
         # Find find the coordinates for each carreux partiel
         coordinates = CPs.get_CP_coordinates(self.carreauxEntiers,
                                              self.CPfishnet)
@@ -702,7 +697,8 @@ class Basin:
                                                       "pctSolNu", "altitudeMoy", "profondeurMin",
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
-                                                      "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont", "pctImpermeable"],
+                                                      "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
+                                                      "cumulArea", "pctImpermeable"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -725,6 +721,7 @@ class Basin:
                                                         cumulates["cumulPctSuperficieLacsAmont"].values,
                                                         cumulates["cumulPctSuperficieMaraisAmont"].values,
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
+                                                        self.CPfishnet["cumulArea"].values,
                                                         pctImpermeable
                                                         ])
         # Change the values that must be integer types
@@ -869,14 +866,16 @@ class Basin:
         self._CEgrid.SetProjection(proj.ExportToWkt())
         # self._CEgrid.SetProjection(ref_raster.GetProjection())
         geo_transform = (xmin, self._dx, 0.0, ymax, 0.0, (-1)*self._dy)
+        gt = ref_raster.GetGeoTransform()
         self._CEgrid.SetGeoTransform(geo_transform)
         # band.FlushCache()
         band = self._CEgrid.GetRasterBand(1)
         band.SetNoDataValue(0)
         gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=[
                             "ATTRIBUTE=newCEid"])
-        band = self._CEgrid.GetRasterBand(1)
+        # band = self._CEgrid.GetRasterBand(1)
         data_array = band.ReadAsArray()
+        # band.WriteArray(data_array)
         return data_array
 
     def create_CPgrid(self):

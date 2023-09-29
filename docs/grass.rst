@@ -103,17 +103,11 @@ Now, you can see the DEM raster from the display window:
   :alt: new mapset
   :align: center
 
-Before obtaning the next raster maps, let's fill the sinks from the original DEM. This can be achieve by running the next command line:
+Then, let's compute the the DIR file
 
 .. code-block:: bash
   
-  r.fill.dir input=DEM output=FilledDEM direction=DIR
-
-Then, let's correct the DIR file
-
-.. code-block:: bash
-  
-  r.watershed --overwrite elevation=FilledDEM drainage=DIR
+  r.watershed --overwrite elevation=DEM drainage=DIR
 
 
 To process the corrected files, we need to install one grass extention. You can do so by running the next command into the console:

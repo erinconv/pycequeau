@@ -64,10 +64,10 @@ def interpolation_netCDF(ds: xr.Dataset,
     Returns:
         xr.DataArray: _description_
     """
-    # check lon values if they need to be converted
-    if max(ds["lon"].values) > 0:
-        # correct = 360
-        table["lon"] = table["lon"] + 360
+    # # check lon values if they need to be converted
+    # if max(ds["lon"].values) > 0:
+    #     # correct = 360
+    #     table["lon"] = table["lon"] + 360
 
     # Create objective
     i_res = CEregrid.ReadAsArray().shape[1]
@@ -78,7 +78,7 @@ def interpolation_netCDF(ds: xr.Dataset,
     # Check whether the longitudes need to be corrected
     if ds["lon"].max() > 0:
         ds["lon"] = ds["lon"].values - 360
-        table["lon"] = table["lon"].values - 360
+        # table["lon"] = table["lon"].values - 360
     # Create the ref objects
     # Find the nearest maximun and minimum values
     lon_max_idx = u.find_nearest(ds["lon"].values, table["lon"].max())
@@ -86,8 +86,8 @@ def interpolation_netCDF(ds: xr.Dataset,
     lat_max_idx = u.find_nearest(ds["lat"].values, table["lat"].max())
     lat_min_idx = u.find_nearest(ds["lat"].values, table["lat"].min())
     # Slice the dataset
-    ds = ds.isel(lat=slice(min(lat_min_idx, lat_max_idx)-1, max(lat_min_idx, lat_max_idx)),
-                 lon=slice(min(lon_min_idx, lon_max_idx), max(lon_min_idx, lon_max_idx)+1))
+    ds = ds.isel(lat=slice(min(lat_min_idx, lat_max_idx), max(lat_min_idx, lat_max_idx)),
+                 lon=slice(min(lon_min_idx, lon_max_idx), max(lon_min_idx, lon_max_idx)))
     # Create reference regridder
     x = np.linspace(min(i), max(i), len(ds["lon"].values))
     y = np.linspace(min(j), max(j), len(ds["lat"].values))
@@ -97,8 +97,10 @@ def interpolation_netCDF(ds: xr.Dataset,
     ds = ds.assign_coords(lon=x)
     # Create mask
     dsi = ds.interp(time=ds["time"], lat=j, lon=i, method=method)
+    # Flip the array since gdal reads it upside down
+    CE_array = np.flipud(CEregrid.ReadAsArray())
     # mask interpolated dataset
-    dsi = dsi.where(CEregrid.ReadAsArray() > 0)
+    dsi = dsi.where(CE_array > 0)
     dsi = dsi.rename(lat="j", lon="i")
     dsi = dsi.transpose("time", "j", "i")
     dsi["i"] = i.astype(np.int16)
@@ -127,8 +129,9 @@ def get_netCDF_grids(ds: xr.DataArray,
     """
     xtup, ytup, _ = u.GetExtent(CEgrid)
     epsg_dem = projections.get_proj_code(CEgrid)
-    y, x = projections.utm_to_latlon((np.amin(ytup), np.amax(ytup)),
-                                     (np.amin(xtup), np.amax(xtup)),
+    # (lon, lat) -> (x, y)
+    x, y = projections.utm_to_latlon((np.amin(xtup), np.amax(xtup)),
+                                     (np.amin(ytup), np.amax(ytup)),
                                      epsg_dem)
     # TODO: Add another object to deal with the dataset dimension names. For now, the default names are: [time,lat,lon]
     dy = abs(ds["lat"][0].values - ds["lat"][1].values)
@@ -139,10 +142,11 @@ def get_netCDF_grids(ds: xr.DataArray,
     shp_layer = watershed.GetLayer()
     xmin, xmax, ymin, ymax = shp_layer.GetExtent()
     # Convert the shp extent to latlon also
-    y, x = projections.utm_to_latlon((ymin, ymax),
-                                     (xmin, xmax),
+    # (lon, lat) -> (x, y)
+    x, y = projections.utm_to_latlon((xmin, xmax),
+                                     (ymin, ymax),
                                      epsg_dem)
-    watershed_extent = (y, x)
+    watershed_extent = (x, y)
     # Check if retrieved points fall in watershed extent
     xypair = u.falls_in_extent(watershed_extent,
                                lon_mask,
@@ -152,8 +156,8 @@ def get_netCDF_grids(ds: xr.DataArray,
 
 def create_station_table(CEregrid: gdal.Dataset,
                          DEM: gdal.Dataset,
-                         lat_utm: np.ndarray,
                          lon_utm: np.ndarray,
+                         lat_utm: np.ndarray,
                          xy_pair: np.ndarray) -> pd.DataFrame:
     """This code generates the station table used to check which grid points
     fall into the watershed boundaries
@@ -168,15 +172,18 @@ def create_station_table(CEregrid: gdal.Dataset,
     Returns:
         pd.DataFrame: _description_
     """
-    # ce_gri = CEregrid.ReadAsArray()
-    i_res = CEregrid.ReadAsArray().shape[1]
-    j_res = CEregrid.ReadAsArray().shape[0]
+    ce_grid = CEregrid.ReadAsArray()
+    # ce_grid = np.flipud(ce_grid)
+    i_res = ce_grid.shape[1]
+    j_res = ce_grid.shape[0]
     i = np.linspace(0, i_res, i_res, dtype=int)
     j = np.linspace(0, j_res, j_res, dtype=int)
-    # Get raster index
+    # Flip upside down since we are using geographic indexes
+    j = np.flipud(j)
+    # # Get raster index
     row, col = u.get_index_list(CEregrid,
-                                lat_utm,
-                                lon_utm)
+                                lon_utm,
+                                lat_utm)
     # Check if there are values outsite the actual boundaries of the watershed
     # Check first cols
     row = np.array(row, dtype=np.float32)
@@ -207,7 +214,9 @@ def create_station_table(CEregrid: gdal.Dataset,
         "j": j[row]+10,
         "lat": xy_pair[:, 1],
         "lon": xy_pair[:, 0],
-        "CEid": CEregrid.ReadAsArray()[row, col],
+        "lat_utm": lat_utm,
+        "lon_utm": lon_utm,
+        "CEid": ce_grid[row, col],
         "altitude": u.get_altitude_point(DEM, lat_utm, lon_utm)
     }
     )

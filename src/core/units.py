@@ -35,7 +35,7 @@ def units_CORDEX(ds: xr.Dataset):
     if var_name == "clt":
         ds[var_name].attrs = dict(units="0-1",
                                   long_name="Cloud cover")
-        ds[var_name].values = ds[var_name].values/100
+        # ds[var_name].values = ds[var_name].values/100
         ds = ds.rename({var_name: "nebulosite"})
 
     if var_name == "vp":
@@ -43,10 +43,11 @@ def units_CORDEX(ds: xr.Dataset):
         # ds[var_name] = ds[var_name].transpose("time","lat","lon")
         ds[var_name].attrs = dict(units="mmHg",
                                   long_name="Vapor pressure")
+        # TODO: Temporal - Needs to be fixed
+        ds[var_name].values = 100*ds[var_name].values
         ds = ds.rename({var_name: "pression"})
         # ds[var_name].attrs = dict(units="mmHg",
         #                            long_name="Vapor pressure")
-        # ds[var_name].values = 7.50062e-3*ds[var_name].values
     if var_name == "tasmin" or var_name == "tasmax":
         # from K to degC
         if var_name == "tasmax":
@@ -100,7 +101,7 @@ def units_ERA(ds: xr.Dataset):
         # from kPa to mmHg 7.50062
         ds[var_name].attrs = dict(units="mmHg",
                                   long_name="Vapor pressure")
-        # ds[var_name].values = 7.50062e-3*ds[var_name].values
+        ds[var_name].values = 7.50062e-3*ds[var_name].values
         ds = ds.rename({var_name: "pression"})
     if var_name == "tmax" or var_name == "tmin":
         # from K to degC

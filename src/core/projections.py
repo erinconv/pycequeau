@@ -51,8 +51,8 @@ def latlon_to_utm(lon: list,
         tuple: _description_
     """
     transformer = get_transformer("EPSG:4326", target)
-    lat_utm, lon_utm = transformer.transform(lat, lon)
-    return lat_utm, lon_utm
+    lon_utm, lat_utm = transformer.transform(lon, lat)
+    return lon_utm, lat_utm
 
 
 def utm_to_latlon(x: list,
@@ -69,5 +69,5 @@ def utm_to_latlon(x: list,
         tuple: _description_
     """
     transformer = get_transformer(source, "EPSG:4326")
-    lat_utm, lon_utm = transformer.transform(y, x)
-    return lat_utm, lon_utm
+    lat_utm, lon_utm = transformer.transform(x, y)
+    return lon_utm, lat_utm

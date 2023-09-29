@@ -8,14 +8,16 @@ import os
 
 def find_grid_coordinates(CE_array: np.ndarray) -> pd.DataFrame:
     # Flip the array, since gdal stores it upside down
-    # CE_array = np.flipud(CE_array)
+    # The array was flipped because in this step we use the arrays indexes
+    # rather than geographical indexing
+    CE_array = np.flipud(CE_array)
     i_res = CE_array.shape[1]  # columns
     j_res = CE_array.shape[0]  # rows
     i = np.linspace(0, i_res-1, i_res, dtype=int).astype("uint16")
     j = np.linspace(0, j_res-1, j_res, dtype=int).astype("uint16")
     # Create mesh grid with the i,j values
     im, jm = np.meshgrid(i, j)
-    idx, idy = np.where(CE_array != 0)
+    # idx, idy = np.where(CE_array != 0)
     # Mask array based on the nondata value
     masked_CE = np.ma.masked_where(CE_array == 0, CE_array)
     jm = jm[~masked_CE.mask]

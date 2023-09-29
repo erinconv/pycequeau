@@ -7,7 +7,6 @@ from .units import (
     units_ERA,
     units_CORDEX
 )
-import sys
 
 
 def dict_netCDF(files_path: str) -> dict:
@@ -57,6 +56,9 @@ def get_CORDEX_Dataset(vars_dict: dict) -> xr.Dataset:
         #   ds = ds.merge(vars_dict.get(var))
         # Fix units
         dr = units_CORDEX(vars_dict.get(var))
+        variables = list(dr.variables)
+        if "height" in variables:
+            dr = dr.drop_vars("height")
         nc_file_var = list(dr.keys())[0]
         ds = ds.merge(dr)
         # Put attributes
