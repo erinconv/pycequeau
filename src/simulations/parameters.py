@@ -4,6 +4,7 @@ import os
 import json
 import numpy as np
 import geopandas as gpd
+import xarray as xr
 import pandas as pd
 from shapely.geometry import Point, LineString
 from src.physiographic.base import Basin
@@ -37,6 +38,28 @@ class Parameters:
         self.time_of_concentrations = None
         self.slope_channel = None
 
+    @property
+    def day_max_insolation(self):
+        return self._day_max_radiation
+
+    @day_max_insolation.setter
+    def day_max_insolation(self, meteo_file_name: str):
+        meteo_file_name = os.path.join(self.basin_structure.project_path,
+                                       "meteo", meteo_file_name)
+        # Open the meteo file name
+        nc_meteo = xr.open_dataset(meteo_file_name)
+        # Get the variable tmax in the first cp
+        tmax = nc_meteo["tMax"].to_pandas()
+        # tmax = nc_meteo["rayonnement"][:,0].values
+        time = pd.to_datetime(nc_meteo["pasTemp"].values-719529, unit='D')
+        tmax.index = time
+        # Get the julian days
+        multi_annual = tmax.groupby(tmax.index.day_of_year).mean()
+        idx_max_temp = multi_annual.idxmax()
+        jour = multi_annual.index[idx_max_temp].values
+        jonei = np.mean(jour - 365/4)
+        self._day_max_radiation = int(jonei)
+
     def create_parameter_structure(self):
         """_summary_
         """
@@ -67,17 +90,8 @@ class Parameters:
                        "moduleFonte": values[0],
                        "moduleEvapo": values[1],
                        "calculQualite": values[2],
-                       "jonei": 100,
-                       "joeva": 100}
-
-    def set_maximum_insolation_day(self, jonei: int):
-        """_summary_
-
-        Args:
-            jonei (int): _description_
-        """
-        self.option["jonei"] = jonei
-        self.option["joeva"] = jonei
+                       "jonei": self.day_max_insolation,
+                       "joeva": self.day_max_insolation}
 
     def set_sol(self, values: np.ndarray):
         """_summary_

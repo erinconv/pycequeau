@@ -41,6 +41,17 @@ class Basin:
         # Create project structure
         self._project_path = project_folder
         self.name = basin_name
+        self.n_cols = []
+        self.n_rows = []
+        self._dx = []
+        self._dy = []
+        self.pixel_width = []
+        self.pixel_height = []
+        self.rtable = None
+        self.outlet_routes = None
+        self._Basin = None
+        self._newSubBasins = None
+        self._SubBasins = None
         # Create project structure
         self._project_structure(file_list)
         # Create here the fishnet
@@ -56,23 +67,13 @@ class Basin:
                 # Open the json file file
                 f = open(args[0], "r", encoding='utf-8')
                 self.bassinVersant = json.loads(f.read())
-            except ValueError:
-                raise ValueError("Provided file is not a json file")
-        else:
-            # Polygonize and process the raster watershed and subbasins file
-            self.rasterize_maps()
-        self.n_cols = []
-        self.n_rows = []
-        self._dx = []
-        self._dy = []
-        self.pixel_width = []
-        self.pixel_height = []
-        # self.CPfishnet = None
-        # self.CEfishnet = None
-        # self.rtable = None
-        # self.outlet_routes = None
-        # self._newSubBasins = None
-        # self._SubBasins = None
+            # except ZeroDivisionError as e
+            except ValueError as exc:
+                raise ValueError(
+                    "Provided file for bassinVerssant structure is not a json file") from exc
+        # else:
+        #     # Polygonize and process the raster watershed and subbasins file
+        #     self.rasterize_maps()
 
     @property
     def Basin(self):
@@ -91,8 +92,40 @@ class Basin:
         return self._CPfishnet
 
     @property
+    def ce_fishnet_name(self):
+        return self._CEfishnet
+
+    @property
     def project_path(self):
         return self._project_path
+
+    @property
+    def CPfishnet(self):
+        return self._CPfihsnet_gdf
+
+    @CPfishnet.setter
+    def CPfishnet(self, gdf: gpd.GeoDataFrame):
+        self._CPfihsnet_gdf = gdf
+
+    @property
+    def CEfishnet(self):
+        return self._CEfihsnet_gdf
+
+    @CEfishnet.setter
+    def CEfishnet(self, gdf: gpd.GeoDataFrame):
+        self._CEfihsnet_gdf = gdf
+
+    @property
+    def get_dimenssions(self):
+        return [self._dx, self._dy]
+
+    @property
+    def get_EPSG(self):
+        return self._epsg
+
+    @get_EPSG.setter
+    def get_EPSG(self):
+        self._epsg = ceqproj.get_proj_code(self._DEM)
 
     def _project_structure(self, file_list: str):
         """_summary_
@@ -118,10 +151,10 @@ class Basin:
             self._project_path, "geographic", file_list[3])
         self._SubBasins = os.path.join(
             self._project_path, "geographic", file_list[4])
-        self._Waterbodies = os.path.join(
-            self._project_path, "geographic", file_list[5])
-        self._Wetlands = os.path.join(
-            self._project_path, "geographic", file_list[6])
+        # self._Waterbodies = os.path.join(
+        #     self._project_path, "geographic", file_list[5])
+        # self._Wetlands = os.path.join(
+        #     self._project_path, "geographic", file_list[6])
 
     def rasterize_maps(self):
         """_summary_
@@ -166,18 +199,6 @@ class Basin:
         # Fix the position of the fisnet to match each pixel position
         self._dx = self.n_cols*self.pixel_width
         self._dy = self.n_rows*self.pixel_height
-
-    @property
-    def get_dimenssions(self):
-        return [self._dx, self._dy]
-
-    @property
-    def get_EPSG(self):
-        return self._epsg
-
-    @get_EPSG.setter
-    def get_EPSG(self):
-        self._epsg = ceqproj.get_proj_code(self._DEM)
 
     @classmethod
     def _create_CEfishnet(cls,
@@ -371,6 +392,8 @@ class Basin:
             xoffset (float, optional): _description_. Defaults to 0.0.
             yoffset (float, optional): _description_. Defaults to 0.0.
         """
+        # Rasterize maps in this step
+        self.rasterize_maps()
         # Check if the file already exist
         if os.path.exists(self._CEfishnet):
             os.remove(self._CEfishnet)
