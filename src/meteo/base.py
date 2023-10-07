@@ -87,11 +87,6 @@ class Meteo:
 
         return True
 
-        # if approve_score == 7:
-        #     return True
-        # # else:
-        #     raise
-
     @classmethod
     def stattion_table(cls,
                        CEgrid: gdal.Dataset,
@@ -112,7 +107,7 @@ class Meteo:
                             fishnet,
                             grid_size,
                             **kwargs)
-        pass
+
 
     @classmethod
     def interpolate(cls,

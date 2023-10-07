@@ -88,13 +88,10 @@ class StationNetCDF(Meteo):
         """
         # Get the var list
         var_list = list(ds.keys())
+        CEs_name = os.path.join(basin_struct.project_path,"results","carreauxEntiers.csv")
+        CEs_df = pd.read_csv(CEs_name,index_col=0)
+        CEs_df.index = CEs_df["CEid"].values
         # Get the CEs and the i,j values from the bassinVersant structure.
-        CEs = np.array(basin_struct.bassinVersant["carreauxEntiers"]["CEid"])
-        # Here we substract 10 to use this vector as index in the meteo dataset
-        i = np.array(
-            basin_struct.bassinVersant["carreauxEntiers"]["i"]) - 10  # columns
-        j = np.array(
-            basin_struct.bassinVersant["carreauxEntiers"]["j"]) - 10  # rows
 
         # Remove CE variable from the main dataset
         var_list.remove("CE")
@@ -104,10 +101,10 @@ class StationNetCDF(Meteo):
         # Create the dataset to store the variables in the CEQUEAU format
         for var_num, var_name in enumerate(var_list):
             if var_num == 0:
-                dr = create_grid_var(ds, j, i, CEs, var_name, datenum)
+                dr = create_grid_var(ds, CEs_df, var_name, datenum)
             else:
                 dr = dr.merge(create_grid_var(
-                    ds, j, i, CEs, var_name, datenum))
+                    ds, CEs_df, var_name, datenum))
             dr[var_name].attrs = ds[var_name].attrs
             # break
         return dr
@@ -139,7 +136,9 @@ class StationNetCDF(Meteo):
         DEM = gdal.Open(self.basin_struct.DEM, gdal.GA_ReadOnly)
         epsg_dem = projections.get_proj_code(DEM)
         # Create the CEgrid file
-        CE_array = self.basin_struct.create_CEgrid()
+        ce_grid = gdal.Open(self.basin_struct.get_CEgrid, gdal.GA_ReadOnly)
+        # ce_array = np.array(ce_grid.GetRasterBand(1).ReadAsArray())
+        # CE_array = self.basin_struct.create_CEgrid()
         # CE_array = np.flipud(CE_array)
         # Open the shp file from the basin structure
         watershed = ogr.Open(self.basin_struct.Basin.replace(
@@ -155,7 +154,7 @@ class StationNetCDF(Meteo):
             epsg_dem)
 
         # Create stations_table
-        self.table = create_station_table(self.basin_struct.get_CEgrid,
+        self.table = create_station_table(ce_grid,
                                           DEM,
                                           self.lon_utm,
                                           self.lat_utm,

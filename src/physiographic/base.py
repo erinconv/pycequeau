@@ -8,6 +8,7 @@ import numpy as np
 import geopandas as gpd
 import rasterstats as rs
 import matplotlib.pyplot as plt
+import rasterio
 from src.physiographic import carreauxEntiers as CEs
 from src.physiographic import carreauxPartiels as CPs
 from src.physiographic import CPfishnet as CPfs
@@ -41,12 +42,14 @@ class Basin:
         # Create project structure
         self._project_path = project_folder
         self.name = basin_name
-        self.n_cols = []
-        self.n_rows = []
-        self._dx = []
-        self._dy = []
-        self.pixel_width = []
-        self.pixel_height = []
+        self.n_cols = None
+        self.n_rows = None
+        self._dx = None
+        self._dy = None
+        self._dx_o = None
+        self._dy_o = None
+        self.pixel_width = None
+        self.pixel_height = None
         self.rtable = None
         self.outlet_routes = None
         self._Basin = None
@@ -59,6 +62,8 @@ class Basin:
             self._project_path, "geographic", "CE_fishnet.shp")
         self._CPfishnet = os.path.join(
             self._project_path, "geographic", "CP_fishnet.shp")
+        self._CEgrid = os.path.join(
+            self._project_path, "geographic", "CEgrid.tif")
 
         # Check if the bassin versant object is an input file
         if len(args) == 1:
@@ -189,6 +194,8 @@ class Basin:
             dx (float): _description_
             dy (float): _description_
         """
+        self._dx_o = dx
+        self._dy_o = dy
         ref_dataset = gdal.Open(self._DEM, gdal.GA_ReadOnly)
         transform = ref_dataset.GetGeoTransform()
         self.pixel_width = transform[1]
@@ -372,8 +379,8 @@ class Basin:
         """_summary_
         """
         # Check if the file already exist
-        if os.path.exists(self._CPfishnet):
-            os.remove(self._CPfishnet)
+        # if os.path.exists(self._CPfishnet):
+        #     os.remove(self._CPfishnet)
         # Clip the sub basins with the watershed file
         self._newSubBasins = os.path.join(
             self._project_path, "geographic", "sub_basins.shp")
@@ -395,8 +402,8 @@ class Basin:
         # Rasterize maps in this step
         self.rasterize_maps()
         # Check if the file already exist
-        if os.path.exists(self._CEfishnet):
-            os.remove(self._CEfishnet)
+        # if os.path.exists(self._CEfishnet):
+        #     os.remove(self._CEfishnet)
 
         self._create_CEfishnet(self._Basin,
                                self._dx,
@@ -509,6 +516,8 @@ class Basin:
         self.CEfishnet['newCEid'] = self.CEfishnet['newCEid'].astype('int')
         self.CPfishnet.to_file(self._CPfishnet)
         self.CEfishnet.to_file(self._CEfishnet)
+        # Exprot the files as tif
+        self._save_tif_ce_fishnet()
 
     @classmethod
     def get_water_cover(cls,
@@ -629,9 +638,10 @@ class Basin:
         # Create the CE grid with the shp dimenssions,
         # not with the reference raster dimensions to save memory and
         # make the processes faster
-        CE_Array = self.create_CEgrid()
+        ds = gdal.Open(self._CEgrid, gdal.GA_ReadOnly)
+        ce_array = np.array(ds.GetRasterBand(1).ReadAsArray())
         # Find i,j coordinates
-        coordinates = CEs.find_grid_coordinates(CE_Array)
+        coordinates = CEs.find_grid_coordinates(ce_array)
         # Get the landcover dataset
         self.CEfishnet.index = self.CEfishnet["newCEid"].values
         pctForet, pctSolNu, pctWater, pctWetlands, pctImpermeable = self.get_land_cover(self.CEfishnet,
@@ -639,8 +649,6 @@ class Basin:
                                                                                         "newCEid")
         # Scale the percentages to make sure that they all sum up 100%
         total = pctForet + pctSolNu + pctWater + pctWetlands  # This is 100%
-        remain = 100 - total
-        remain[remain < 0] = 0
         pctForet = np.divide(pctForet, total)*100
         pctSolNu = np.divide(pctSolNu, total)*100
         pctWater = np.divide(pctWater, total)*100
@@ -853,53 +861,48 @@ class Basin:
                   scale=1)
         plt.show()
 
-    def create_CEgrid(self):
+    def _save_tif_ce_fishnet(self):
         """_summary_
 
         Returns:
             _type_: _description_
         """
-        # Default no data value of the CAT raster
-        ref_raster = gdal.Open(self._DEM, gdal.GA_ReadOnly)
+        # Get the fishnet vector file
         CE_shp = ogr.Open(self._CEfishnet, gdal.GA_ReadOnly)
         lyr = CE_shp.GetLayer()
-        # new_field = ogr.FieldDefn('CEid', ogr.OFTInteger)
-        # lyr.CreateField(new_field)
-        # for i, aa in enumerate(lyr):
-        #     feature = lyr.GetFeature(i)
-        #     feature.SetField("id2", i+1)
-        #     lyr.SetFeature(feature)
-        # Get the raster extent
-        # xmin, xmax, ymin, ymax, xpixel, ypixel = u.GetExtent(self._DEM)
-        # width = self._DEM.RasterXSize
-        # height = self._DEM.RasterYSize
-        # xmax = xmin + width*xpixel
-        # ymin = ymax + height*ypixel
-        proj = lyr.GetSpatialRef()
+        # Open shp a geopandas
+        vector = gpd.read_file(self.ce_fishnet_name)
+        geom_value = ((geom, value)
+                      for geom, value in zip(vector.geometry, vector['newCEid']))
         xmin, xmax, ymin, ymax = lyr.GetExtent()
         # Get the resolution to the new raster
-        x_res = ceil((xmax-xmin)/self._dx)
-        y_res = ceil((ymax-ymin)/self._dy)
-        # Get dimenssions for the CEgrid rasters
-
-        # CEgrid path
-        path = os.path.join(self._project_path, "geographic", "CEgrid.tif")
-        self._CEgrid = gdal.GetDriverByName('GTiff').Create(
-            path, abs(x_res), abs(y_res), 1, gdal.GDT_Int32)
-        self._CEgrid.SetProjection(proj.ExportToWkt())
-        # self._CEgrid.SetProjection(ref_raster.GetProjection())
-        geo_transform = (xmin, self._dx, 0.0, ymax, 0.0, (-1)*self._dy)
-        gt = ref_raster.GetGeoTransform()
-        self._CEgrid.SetGeoTransform(geo_transform)
-        # band.FlushCache()
-        band = self._CEgrid.GetRasterBand(1)
-        band.SetNoDataValue(0)
-        gdal.RasterizeLayer(self._CEgrid, [1], lyr, options=[
-                            "ATTRIBUTE=newCEid"])
-        # band = self._CEgrid.GetRasterBand(1)
-        data_array = band.ReadAsArray()
-        # band.WriteArray(data_array)
-        return data_array
+        pixel_size = self._dx
+        x_res = floor((xmax-xmin)/pixel_size)
+        y_res = ceil((ymax-ymin)/pixel_size)
+        # Get the rasterio transformer and rasterize
+        transform = rasterio.Affine(pixel_size, 0.0, xmin, 0.0,
+                                    (-1)*pixel_size, ymax)
+        rasterized = rasterio.features.rasterize(geom_value,
+                                                 out_shape=(y_res, x_res),
+                                                 fill=0,
+                                                 out=None,
+                                                 transform=transform,
+                                                 all_touched=False,
+                                                 default_value=1,
+                                                 dtype=None)
+        # Save file
+        self._CEgrid = os.path.join(
+            self._project_path, "geographic", "CEgrid.tif")
+        with rasterio.open(self._CEgrid, "w",
+                           driver="GTiff",
+                           crs=vector.crs,
+                           transform=transform,
+                           dtype=rasterio.uint32,
+                           count=1,
+                           width=x_res,
+                           nodata=0,
+                           height=y_res) as dst:
+            dst.write(rasterized, indexes=1)
 
     def create_CPgrid(self):
         """_summary_

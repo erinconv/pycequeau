@@ -37,13 +37,17 @@ class Parameters:
         self.main_channel_length = None
         self.time_of_concentrations = None
         self.slope_channel = None
+        self._jonei = None
 
-    @property
-    def day_max_insolation(self):
-        return self._day_max_radiation
-
-    @day_max_insolation.setter
     def day_max_insolation(self, meteo_file_name: str):
+        """_summary_
+
+        Args:
+            meteo_file_name (str): _description_
+
+        Returns:
+            _type_: _description_
+        """
         meteo_file_name = os.path.join(self.basin_structure.project_path,
                                        "meteo", meteo_file_name)
         # Open the meteo file name
@@ -58,7 +62,7 @@ class Parameters:
         idx_max_temp = multi_annual.idxmax()
         jour = multi_annual.index[idx_max_temp].values
         jonei = np.mean(jour - 365/4)
-        self._day_max_radiation = int(jonei)
+        self._jonei = int(jonei)
 
     def create_parameter_structure(self):
         """_summary_
@@ -90,8 +94,8 @@ class Parameters:
                        "moduleFonte": values[0],
                        "moduleEvapo": values[1],
                        "calculQualite": values[2],
-                       "jonei": self.day_max_insolation,
-                       "joeva": self.day_max_insolation}
+                       "jonei": self._jonei,
+                       "joeva": self._jonei}
 
     def set_sol(self, values: np.ndarray):
         """_summary_

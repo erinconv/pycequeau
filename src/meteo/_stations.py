@@ -9,17 +9,13 @@ from src.core import utils as u
 
 
 def create_grid_var(ds: xr.Dataset,
-                    rows: np.ndarray,
-                    cols: np.ndarray,
-                    CEs: np.ndarray,
+                    CEs_df: pd.DataFrame,
                     var_name: str,
                     datenum: list) -> xr.Dataset:
     """_summary_
     Args:
         ds (xr.Dataset): _description_
-        idx (np.ndarray): _description_
-        idy (np.ndarray): _description_
-        CEs (np.ndarray): _description_
+        CEs_df (pd.DataFrame): _description_
         var_name (str): _description_
         datenum (list): _description_
 
@@ -31,50 +27,48 @@ def create_grid_var(ds: xr.Dataset,
         data_vars={
             var_name: (
                 ["pasTemp", "CEid"], np.zeros(
-                    [len(datenum), len(CEs)]).astype(np.float32)
+                    [len(datenum), len(CEs_df)]).astype(np.float32)
             )
         },
         coords={
-            "CEid": CEs.astype(np.int32),
+            "CEid": CEs_df["CEid"].values.astype(np.int32),
             "pasTemp": datenum
         }
     )
-    # this is for getting the CE number
-    count = 0
-    for i, j in zip(cols, rows):
-        # Place the value in the new matrix
-        dr[var_name][:, count] = ds[var_name][:,
-                                              j, i].values.astype(np.float32)
-        count += 1
+    # Set indexes as integers
+    CEs_df["j"] = CEs_df["j"].values.astype("int")
+    CEs_df["i"] = CEs_df["i"].values.astype("int")
+    # Filling up the CEQUEAU grid file
+    for idx, ce_id in CEs_df.iterrows():
+        # Get the row, col indexes
+        i = int(ce_id["i"])
+        j = int(ce_id["j"])
+        dr[var_name][:, idx-1] = ds[var_name].loc[:,j,i].values.astype(np.float32)
     return dr
 
 
 def interpolation_netCDF(ds: xr.Dataset,
-                         CEregrid: gdal.Dataset,
+                         CEregrid: str,
                          table: pd.DataFrame,
                          method: str = "linear") -> xr.DataArray:
     """Interpolate
 
     Args:
         ds (xr.DataArray): _description_
-        CEregrid (gdal.Dataset): _description_
+        CEregrid (str): _description_
         table (pd.DataFrame): _description_
         method (str, optional): _description_. Defaults to "linear".
 
     Returns:
         xr.DataArray: _description_
     """
-    # # check lon values if they need to be converted
-    # if max(ds["lon"].values) > 0:
-    #     # correct = 360
-    #     table["lon"] = table["lon"] + 360
-
     # Create objective
-    i_res = CEregrid.ReadAsArray().shape[1]
-    j_res = CEregrid.ReadAsArray().shape[0]
-    i = np.linspace(0, i_res, i_res)+10
-    j = np.linspace(0, j_res, j_res)+10
-    # ig, jg = np.meshgrid(i, j, indexing="ij")
+    ce_grid = gdal.Open(CEregrid, gdal.GA_ReadOnly)
+    ce_array = np.array(ce_grid.GetRasterBand(1).ReadAsArray())
+    i_res = ce_array.shape[1]
+    j_res = ce_array.shape[0]
+    i = np.arange(0, i_res, 1)+10
+    j = np.arange(0, j_res, 1)+10
     # Check whether the longitudes need to be corrected
     if ds["lon"].max() > 0:
         ds["lon"] = ds["lon"].values - 360
@@ -91,22 +85,21 @@ def interpolation_netCDF(ds: xr.Dataset,
     # Create reference regridder
     x = np.linspace(min(i), max(i), len(ds["lon"].values))
     y = np.linspace(min(j), max(j), len(ds["lat"].values))
-    # x = np.linspace(min(i), max(i), len(ds["lon"].values), dtype=np.int8)
-    # y = np.linspace(min(j), max(j), len(ds["lat"].values), dtype=np.int8)
+    # y = np.flip(y)
     ds = ds.assign_coords(lat=y)
     ds = ds.assign_coords(lon=x)
     # Create mask
+    j = np.flip(j)
     dsi = ds.interp(time=ds["time"], lat=j, lon=i, method=method)
     # Flip the array since gdal reads it upside down
-    CE_array = np.flipud(CEregrid.ReadAsArray())
     # mask interpolated dataset
-    dsi = dsi.where(CE_array > 0)
+    dsi = dsi.where(ce_array> 0)
     dsi = dsi.rename(lat="j", lon="i")
     dsi = dsi.transpose("time", "j", "i")
     dsi["i"] = i.astype(np.int16)
     dsi["j"] = j.astype(np.int16)
     ds = ds.rename(lat="j", lon="i")
-    dsi = _appendCEgrid(dsi, CEregrid)
+    dsi = _appendCEgrid(dsi, ce_grid)
     dsi = dsi.assign_attrs(
         interpolated=f"Interpolated using the method: {method} from xr.Dataset.interp function")
     return dsi
