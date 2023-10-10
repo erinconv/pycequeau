@@ -10,8 +10,10 @@ To use this library, first clone the ithub repository
     git clone git@github.com:erinconv/pycequeau.git
     cd pycequeau
 
-This library was developed and tested in python 3.7, given incompatibilities with GDAL and newer python versions. To use it correctly, we recommend to use Anaconda as python interpreter. In the ``pycequeau`` folder, create the conda environment using the ``environment.yml`` file as follows:
+The pycequeau packge has some dependencies that may cause some  compatibilities troubles, specially in Windows systems. It is highly recommended to create a fresh conda environment to have all the needed dependencies. 
 
 .. code-block:: bash
-    
-    conda env create -f environment.yml
+
+    conda install -c conda-forge mamba
+    mamba create -n testenv gdal geopandas matplotlib xarray netcdf4 shapely rasterstats pyproj pytest rasterstats pandas=1.3.5 numpy=1.20.3
+

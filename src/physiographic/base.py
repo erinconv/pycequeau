@@ -877,7 +877,7 @@ class Basin:
         xmin, xmax, ymin, ymax = lyr.GetExtent()
         # Get the resolution to the new raster
         pixel_size = self._dx
-        x_res = floor((xmax-xmin)/pixel_size)
+        x_res = ceil((xmax-xmin)/pixel_size)
         y_res = ceil((ymax-ymin)/pixel_size)
         # Get the rasterio transformer and rasterize
         transform = rasterio.Affine(pixel_size, 0.0, xmin, 0.0,

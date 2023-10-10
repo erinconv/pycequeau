@@ -714,21 +714,29 @@ def get_rtable(CP_fishnet: gpd.GeoDataFrame,
     # *So, here we make sure that we drop all the CP where this happens into the main data frame.
     # *This is because the CPs in the border can be so tiny that they do not account for the
     # *area threshold that we defined.
-    # Get the CPs where the its downstream is zero
-    idx_zero_inCP = routing["inCPid"] == 0
-    index_zero_flow_in = routing.index[idx_zero_inCP]
+    
     # Create the rouring table here
     rtable = pd.DataFrame(columns=["oldCPid", "newCPid",
                                    "upstreamCPs", "oldupstreams"],
                           index=routing.index)
     routing["diff"] = routing["CPid"] - routing["inCPid"]
+    routing["FAC"] = pd.to_numeric(routing["FAC"])
     # Find where the difference is zero
     # This will help us to find the outlet CP
     idx_outlet = routing.index[routing["diff"] == 0].tolist()
     if len(idx_outlet) > 1:
         assert False, "There are more than 1 outlet point."
     elif len(idx_outlet) == 0:
-        assert False, "The outlet point was not found"
+        idx_outlet = routing["FAC"].idxmax()
+        # Check if it drains into a non-existent CP
+        if routing.loc[idx_outlet,"inCPid"] == 0:
+            # All good and can continue
+            routing.loc[idx_outlet,"inCPid"] = [idx_outlet]
+            # Set the values as listed value
+            idx_outlet = [idx_outlet]
+        else:
+            assert False, "The outlet point was not found"
+    
     # assert len(idx_outlet) == 1, "There are more than 1 outlet point."
     # idx_outlet = routing.mask(routing["diff"] != 0)
     # Add this value in the rtable as the first value
@@ -759,6 +767,9 @@ def get_rtable(CP_fishnet: gpd.GeoDataFrame,
             rtable.iloc[i-1, columns.index("oldupstreams")] = upstreams_cps
             new_id_counter += len(idx_outlet)
             routing.loc[idx_outlet, "inCPid"] = -99999
+    # Get the CPs where the its downstream is zero
+    idx_zero_inCP = routing["inCPid"] != -99999
+    index_zero_flow_in = routing.index[idx_zero_inCP]
     # Check if there is NAN values in the rtable
     idx_nan_inCP = rtable["oldCPid"].isnull()
     index_nan = rtable.index[idx_nan_inCP]

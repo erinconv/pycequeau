@@ -11,18 +11,28 @@ Welcome to pycequeau's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting started:
 
    readme
    grass
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Usage of the toolbox:
+
    notebooks/get_physio.ipynb
    notebooks/get_meteo.ipynb
    notebooks/get_params.ipynb
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Source:
+
    modules
 
-Indices and tables
-==================
+.. Indices and tables
+.. ==================
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`
