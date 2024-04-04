@@ -10,8 +10,8 @@ from osgeo import gdal, ogr
 from src.core import projections
 from src.core import manage_files
 from src.physiographic.base import Basin
-from src.core import utils as u
 from .base import Meteo
+from cftime import datetime
 from ._stations import (
     interpolation_netCDF,
     create_station_table,
@@ -56,6 +56,7 @@ class StationNetCDF(Meteo):
         """
         vars_dict = manage_files.dict_netCDF(vars_path)
         ds = manage_files.get_CORDEX_Dataset(vars_dict)
+        
         # Construct object
         obj = cls(bassinVersant, ds)
         return obj
@@ -95,7 +96,13 @@ class StationNetCDF(Meteo):
 
         # Remove CE variable from the main dataset
         var_list.remove("CE")
-        # Convert date to datenum
+        # Slice 
+        start_date =str(ds.time.values[0])
+        end_date = ds.time.values[-1]
+        ds = ds.sel(time=slice(start_date,end_date))
+        # Create datetime to replace the values
+        dtime_new = pd.date_range(start=start_date,periods=ds["time"].shape[0],freq="1D")
+        ds["time"] = dtime_new
         datenum = np.array(list(pd.to_datetime(ds.time.values).map(
             lambda x: 366.0 + x.toordinal())), dtype=np.float32)
         # Create the dataset to store the variables in the CEQUEAU format

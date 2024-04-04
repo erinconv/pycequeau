@@ -33,10 +33,10 @@ def convert_coords_to_index(df: gpd.GeoDataFrame,
     pixelWidth = transform[1]
     pixelHeight = -transform[5]
     for i in range(len(df)):
-        df2.at[i, "col_min"] = ceil((df["minx"].iloc[i] - xOrigin)/pixelWidth)
-        df2.at[i, "row_max"] = ceil((yOrigin - df["miny"].iloc[i])/pixelHeight)
-        df2.at[i, "col_max"] = ceil((df["maxx"].iloc[i]-xOrigin)/pixelWidth)
-        df2.at[i, "row_min"] = ceil((yOrigin - df["maxy"].iloc[i])/pixelHeight)
+        df2.loc[i, "col_min"] = ceil((df["minx"].iloc[i] - xOrigin)/pixelWidth)
+        df2.loc[i, "row_max"] = ceil((yOrigin - df["miny"].iloc[i])/pixelHeight)
+        df2.loc[i, "col_max"] = ceil((df["maxx"].iloc[i]-xOrigin)/pixelWidth)
+        df2.loc[i, "row_min"] = ceil((yOrigin - df["maxy"].iloc[i])/pixelHeight)
         # px_1 = int((df["minx"].iloc[i] - xOrigin)/pixelWidth)
         # py_1 = int((yOrigin - df["miny"].iloc[i])/pixelHeight)
         # px_2 = int((df["maxx"].iloc[i]-xOrigin)/pixelWidth)
@@ -85,8 +85,8 @@ def find_neighbors(gdf: gpd.GeoDataFrame,
         # add names of neighbors as NEIGHBORS value
         # Catch an exception here
         try:
-            gdf.at[index, 'NEIGHBORS'] = neighbors
-            gdf.at[index, 'KEEP'] = keep
+            gdf.loc[index, 'NEIGHBORS'] = neighbors
+            gdf.loc[index, 'KEEP'] = keep
         except ValueError:
             if isinstance(neighbors, list):
                 gdf["NEIGHBORS"].iloc[count] = neighbors
@@ -125,7 +125,7 @@ def identify_small_CPs(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet["CPid"] = range(1, len(CP_fishnet)+1)
     mask_CP = CP_fishnet["Area"] < thereshold*CE_area
     CP_fishnet["Dissolve"] = 0
-    CP_fishnet.at[mask_CP, "Dissolve"] = 1
+    CP_fishnet.loc[mask_CP, "Dissolve"] = 1
     # Get the CP ousite the subbasin
     # This need to be changed for anohter
     mask_SUB = np.isnan(CP_fishnet["CATid"])
@@ -182,19 +182,19 @@ def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
             if CP["Dissolve"]:
                 # Here I delete the Isolated CP in the border
                 if CP["maxFAC"] is None:
-                    CP_fishnet.at[i, "CPid"] = 0.0
-                    CP_fishnet.at[i, "Dissolve"] = 0
-                    CP_fishnet.at[i, "CEid"] = 0
+                    CP_fishnet.loc[i, "CPid"] = 0.0
+                    CP_fishnet.loc[i, "Dissolve"] = 0
+                    CP_fishnet.loc[i, "CEid"] = 0
                 # Delete the CP less than 400 m2. DEM 20x20
                 if CP["maxFAC"] is None and CP["Area"] <= 400:
-                    CP_fishnet.at[i, "CPid"] = 0.0
-                    CP_fishnet.at[i, "Dissolve"] = 0
-                    CP_fishnet.at[i, "CEid"] = 0
+                    CP_fishnet.loc[i, "CPid"] = 0.0
+                    CP_fishnet.loc[i, "Dissolve"] = 0
+                    CP_fishnet.loc[i, "CEid"] = 0
                 # Check if there are no neighbors
                 if not CP["NEIGHBORS"]:
-                    CP_fishnet.at[i, "CPid"] = 0.0
-                    CP_fishnet.at[i, "maxFAC"] = None
-                    CP_fishnet.at[i, "Dissolve"] = 0
+                    CP_fishnet.loc[i, "CPid"] = 0.0
+                    CP_fishnet.loc[i, "maxFAC"] = None
+                    CP_fishnet.loc[i, "Dissolve"] = 0
     # Drop the dissolved values in this iterations
     CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
     CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
@@ -202,7 +202,7 @@ def remove_border_CPs(CE_fishnet: gpd.GeoDataFrame,
     # CP_fishnet.index = range(len(CP_fishnet))
     CP_fishnet.index = CP_fishnet.index.rename("ind")
     CP_fishnet.loc[:, "CPid"] = CP_fishnet.index.values
-    CP_fishnet.at[:, "Area"] = CP_fishnet.area
+    CP_fishnet.loc[:, "Area"] = CP_fishnet.area
 
     return CP_fishnet, CE_fishnet
 
@@ -261,7 +261,7 @@ def remove_smallCP(CE_fishnet: gpd.GeoDataFrame,
                             to_dissolve.append(i)
                             idx_max = CE_features.loc[to_dissolve,
                                                       "maxFAC"].idxmax()
-                            CP_fishnet.at[to_dissolve, "CPid"] = idx_max
+                            CP_fishnet.loc[to_dissolve, "CPid"] = idx_max
                             # Track this CPs
                             tracked_cps.extend(to_dissolve)
                         # 2- There are both, neighbors to dissolve and not to
@@ -270,18 +270,18 @@ def remove_smallCP(CE_fishnet: gpd.GeoDataFrame,
                             # idx_max = CE_features.loc[not_dissolve, "maxFAC"].idxmax()
                             idx_max = CE_features.loc[to_dissolve, "maxFAC"].idxmax(
                             )
-                            CP_fishnet.at[to_dissolve, "CPid"] = idx_max
+                            CP_fishnet.loc[to_dissolve, "CPid"] = idx_max
                             # Track this CP
                             tracked_cps.extend(to_dissolve)
                     else:
                         if not CP["NEIGHBORS"]:
                             # This means the CPs does not have neighbors
-                            CP_fishnet.at[i, "CPid"] = 0
+                            CP_fishnet.loc[i, "CPid"] = 0
                             continue
                         # Here the CPs with no neighbors to dissolve are processed
                         idx_max = CE_features.loc[CP["NEIGHBORS"], "maxFAC"].idxmax(
                         )
-                        CP_fishnet.at[i, "CPid"] = idx_max
+                        CP_fishnet.loc[i, "CPid"] = idx_max
 
         CP_fishnet = CP_fishnet[CP_fishnet["CPid"] != 0]
         CP_fishnet = CP_fishnet.dissolve(by="CPid", aggfunc="max")
@@ -740,8 +740,8 @@ def get_rtable(CP_fishnet: gpd.GeoDataFrame,
     # assert len(idx_outlet) == 1, "There are more than 1 outlet point."
     # idx_outlet = routing.mask(routing["diff"] != 0)
     # Add this value in the rtable as the first value
-    rtable.at[1, "oldCPid"] = routing.loc[idx_outlet, "CPid"].values[0]
-    rtable.at[1, "newCPid"] = 1
+    rtable.loc[1, "oldCPid"] = routing.loc[idx_outlet, "CPid"].values[0]
+    rtable.loc[1, "newCPid"] = 1
     # Get column list
     columns = rtable.columns.tolist()
     # Set to zero the already tracked CP

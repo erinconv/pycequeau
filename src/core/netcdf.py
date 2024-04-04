@@ -71,3 +71,31 @@ def intermidiate_interpolation(ds: xr.Dataset, scale: int):
     dsi = ds.interp(time=ds["time"], lat=lat_objective,
                     lon=lon_objective, method="nearest")
     return dsi
+
+
+def fix_calendar(ds: xr.Dataset):
+    # set all the calendars as gregorian
+    calendar_name = ds.time.dt.calendar
+    align_on = None
+    if calendar_name == "360_day":
+        align_on = "year"
+    
+    # Check date range adn fix it
+    if calendar_name != "gregorian":
+        # align_on = "year"
+        ds = ds.convert_calendar(
+            "gregorian", missing=np.NaN, align_on=align_on)
+        # List variables to fill-up missing dates due t calendar changes
+        var_list = list(ds.variables.keys())
+        var_list.remove("time")
+        var_list.remove("lat")
+        var_list.remove("lon")
+        for var in var_list:
+            ds[var] = ds[var].interpolate_na("time", method="linear")
+        dtime = ds["time"].dt.strftime("%Y-%m-%d")
+        date_range = [str(date_) for date_ in dtime.values]
+        date_time = xr.cftime_range(start=str(date_range[0]),
+                                    end=str(date_range[-1]),
+                                    freq="1D", calendar="gregorian")
+        ds["time"] = date_time
+    return ds

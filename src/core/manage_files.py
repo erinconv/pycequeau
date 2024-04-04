@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from osgeo import gdal, ogr, osr
+from src.core.netcdf import fix_calendar
 from .units import (
     units_ERA,
     units_CORDEX
@@ -56,11 +57,22 @@ def get_CORDEX_Dataset(vars_dict: dict) -> xr.Dataset:
         #   ds = ds.merge(vars_dict.get(var))
         # Fix units
         dr = units_CORDEX(vars_dict.get(var))
+        # Drop non needed variables
         variables = list(dr.variables)
         if "height" in variables:
             dr = dr.drop_vars("height")
+        # Fix calendar
+        dr = fix_calendar(dr)
+        experiment = dr.attrs["experiment"]
+        print(experiment)
+        if dr.attrs["experiment"] == "historical":
+            dr = dr.sel(time=slice("1980","2005"))
+        elif experiment == "rcp85" or experiment== "RCP8.5":
+            dr = dr.sel(time=slice("2040","2095"))
+        
         nc_file_var = list(dr.keys())[0]
         ds = ds.merge(dr)
+        # ds = xr.concat([ds,dr[nc_file_var]],dim="time")
         # Put attributes
         ds[nc_file_var].attrs = dr[nc_file_var].attrs
     return ds
