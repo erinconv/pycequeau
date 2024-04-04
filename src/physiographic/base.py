@@ -889,7 +889,7 @@ class Basin:
                                                  transform=transform,
                                                  all_touched=False,
                                                  default_value=1,
-                                                 dtype=None)
+                                                 dtype=rasterio.uint32)
         # Save file
         self._CEgrid = os.path.join(
             self._project_path, "geographic", "CEgrid.tif")

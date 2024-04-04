@@ -34,9 +34,11 @@ def convert_coords_to_index(df: gpd.GeoDataFrame,
     pixelHeight = -transform[5]
     for i in range(len(df)):
         df2.loc[i, "col_min"] = ceil((df["minx"].iloc[i] - xOrigin)/pixelWidth)
-        df2.loc[i, "row_max"] = ceil((yOrigin - df["miny"].iloc[i])/pixelHeight)
+        df2.loc[i, "row_max"] = ceil(
+            (yOrigin - df["miny"].iloc[i])/pixelHeight)
         df2.loc[i, "col_max"] = ceil((df["maxx"].iloc[i]-xOrigin)/pixelWidth)
-        df2.loc[i, "row_min"] = ceil((yOrigin - df["maxy"].iloc[i])/pixelHeight)
+        df2.loc[i, "row_min"] = ceil(
+            (yOrigin - df["maxy"].iloc[i])/pixelHeight)
         # px_1 = int((df["minx"].iloc[i] - xOrigin)/pixelWidth)
         # py_1 = int((yOrigin - df["miny"].iloc[i])/pixelHeight)
         # px_2 = int((df["maxx"].iloc[i]-xOrigin)/pixelWidth)
@@ -84,16 +86,22 @@ def find_neighbors(gdf: gpd.GeoDataFrame,
         neighbors = [name for name in neighbors if CP[id] != name]
         # add names of neighbors as NEIGHBORS value
         # Catch an exception here
-        try:
-            gdf.loc[index, 'NEIGHBORS'] = neighbors
-            gdf.loc[index, 'KEEP'] = keep
-        except ValueError:
-            if isinstance(neighbors, list):
-                gdf["NEIGHBORS"].iloc[count] = neighbors
-                gdf['KEEP'].iloc[count] = keep
-            else:
-                gdf["NEIGHBORS"].iloc[count] = list([int(neighbors)])
-                gdf['KEEP'].iloc[count] = list([int(keep)])
+        # try:
+        #     gdf.loc[index, 'NEIGHBORS'] = neighbors
+        #     gdf.loc[index, 'KEEP'] = keep
+        # except ValueError:
+        if isinstance(neighbors, list):
+            gdf.at[index, "NEIGHBORS"] = neighbors
+            gdf.at[index, "KEEP"] = keep
+            # j = columns.index("KEEP");
+            
+            # gdf["NEIGHBORS"].iloc[count] = neighbors
+            # gdf['KEEP'].iloc[count] = keep
+        else:
+            gdf.at[index, "NEIGHBORS"] = list([int(neighbors)])
+            gdf.at[index, "KEEP"] = list([int(keep)])
+            # gdf["NEIGHBORS"].iloc[count] = list([int(neighbors)])
+            # gdf['KEEP'].iloc[count] = list([int(keep)])
         count += 1
     return gdf
 
@@ -714,7 +722,7 @@ def get_rtable(CP_fishnet: gpd.GeoDataFrame,
     # *So, here we make sure that we drop all the CP where this happens into the main data frame.
     # *This is because the CPs in the border can be so tiny that they do not account for the
     # *area threshold that we defined.
-    
+
     # Create the rouring table here
     rtable = pd.DataFrame(columns=["oldCPid", "newCPid",
                                    "upstreamCPs", "oldupstreams"],
@@ -729,14 +737,14 @@ def get_rtable(CP_fishnet: gpd.GeoDataFrame,
     elif len(idx_outlet) == 0:
         idx_outlet = routing["FAC"].idxmax()
         # Check if it drains into a non-existent CP
-        if routing.loc[idx_outlet,"inCPid"] == 0:
+        if routing.loc[idx_outlet, "inCPid"] == 0:
             # All good and can continue
-            routing.loc[idx_outlet,"inCPid"] = [idx_outlet]
+            routing.loc[idx_outlet, "inCPid"] = [idx_outlet]
             # Set the values as listed value
             idx_outlet = [idx_outlet]
         else:
             assert False, "The outlet point was not found"
-    
+
     # assert len(idx_outlet) == 1, "There are more than 1 outlet point."
     # idx_outlet = routing.mask(routing["diff"] != 0)
     # Add this value in the rtable as the first value
