@@ -12,18 +12,18 @@ The pycequeau library requires several ``.shp`` and ``.tif`` files to extract th
 Download the DEM
 ----------------
 
-We will use QGIS and GRASS-GIS as the base software to obtain all the files in this case. We will start by downloading the DEM using the SRTM-downloader plugin available through QGIS. Then, in the plugins manager placed in, click on ``Manage and Install plugins`` and write ``SRTM Downloader``. Once you have successfully installed the plugin, we can download the DEM for our basin.
+We will use QGIS and GRASS-GIS as the base software to obtain all the files in this case. We will start by downloading the DEM using the SRTM-downloader plugin available through QGIS. Then, in the plugins manager, click on ``Manage and Install plugins`` and write ``SRTM Downloader``. Once you have successfully installed the plugin, we can download the DEM for our basin.
 
 Downloading the Mélèzes River data
 ----------------------------------
-To download the DEM, we will; need to place our QGIS canvas in the extent that covers the whole basin area. To find out where exactly your basin is located, you will require to have the outlet point coordinates  and the OpenMap base to help you to find the boundaries as shown in the image:
+To download the DEM we will need to place our QGIS canvas in the extent that covers the whole basin area. To find out where exactly your basin is located, you will require to have the outlet point coordinates and a basemap to help you to find the boundaries (in our case, we will use OpenMaps as basemap) as shown in the image:
 
 .. image:: figures/GRASS-tutorial/01-Extent.png
   :width: 400
   :alt: Getting the extent of the basin
   :align: center
 
-Now, open the SRTM-downloader plugin, and when you click on the ``Set canvas extent`` option, it will automatically fill up the extent area to download the DEM files. When you click on download, you will require to register and input your credentilas from the `EARTHDATA`_ portal
+Now, open the SRTM-downloader plugin, and when you click on the ``Set canvas extent`` option it will automatically fill up the extent area to download the DEM files. When you click on download, you will require to register and input your credentilas from the `EARTHDATA`_ portal
 
 .. _EARTHDATA: https://urs.earthdata.nasa.gov//users/new
 
@@ -56,7 +56,7 @@ Now, let's crop this mosaic to remove any undesired areas. To do this, right cli
   :alt: Mosaic image
   :align: center
 
-Now we are set to delineate the watershed using this DEM.
+Now we are all set to delineate the watershed using this DEM.
 
 
 Delineating the watershed
@@ -92,6 +92,7 @@ OPTIONAL: If we have an existent stream nerwork, we can burn this vector file to
 
 .. code-block:: bash 
   
+  v.in.ogr input=path/to/your/project/folder/streams.shp output=streams
   r.carve -n --overwrite raster=DEM vector=streams output=BurnedDEM
 
 
@@ -147,7 +148,7 @@ To retrieve the subbasin raster, run the following command line
 
 .. code-block:: bash
   
-  r.watershed --overwrite elevation=FilledDEM threshold=THEREDHOLD drainage=DIR basin=CAT
+  r.watershed --overwrite elevation=DEM threshold=THEREDHOLD drainage=DIR basin=CAT
 
 and this is the result
 
