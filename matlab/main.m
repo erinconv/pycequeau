@@ -1,7 +1,7 @@
 % add paths to the functions and dependencies
 addpath("functions\")
-addpath("jsonlab-2.0\")
-project_path = '\home\erinconv\01-PhD\River';
+addpath("functions\jsonlab-2.0\")
+project_path = 'path\to\your\project';
 % Import json parameters data
 params_json = fullfile(project_path, 'results', 'parameters.json');
 params_struct = loadjson(params_json);
