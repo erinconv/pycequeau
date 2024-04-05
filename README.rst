@@ -14,6 +14,5 @@ The pycequeau packge has some dependencies that may cause some  compatibilities 
 
 .. code-block:: bash
 
-    conda install -c conda-forge mamba
-    mamba create -n testenv gdal geopandas matplotlib xarray netcdf4 shapely rasterstats pyproj pytest rasterstats pandas=1.3.5 numpy=1.20.3
+    conda env create -f environment.yml
 

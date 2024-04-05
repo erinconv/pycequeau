@@ -831,7 +831,8 @@ class Basin:
         u_c = np.zeros(len(CP_fishnet))
         v_c = u_c.copy()
 
-        fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        # fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
         CP_fishnet.plot(ax=ax, column="cumulArea",)
         max_area = CP_fishnet["cumulArea"].max()
         idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area

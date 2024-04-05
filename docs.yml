@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.8
   - gdal=3.0.2
   - pyproj
   - xarray
@@ -15,9 +15,11 @@ dependencies:
   - geopandas
   - rasterstats
   - netcdf4
-  - shapely=2.0
+  - shapely >= 2.0
+  #Development and documentations dependencies
   - nbconvert
   - nbsphinx
   - sphinx
+  - sphinx-rtd-theme >=1.0
   - nbsphinx-link
   - sphinx-copybutton
