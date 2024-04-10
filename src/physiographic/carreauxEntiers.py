@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from src.core import utils as u
+from src.core import projections
 import geopandas as gpd
 from osgeo import gdal
 import os
@@ -17,7 +18,7 @@ def find_grid_coordinates(CE_array: np.ndarray) -> pd.DataFrame:
     j = np.arange(0, j_res, 1, dtype=int).astype("uint16")
     # j = np.flip(j)
     # Create mesh grid with the i,j values
-    im, jm= np.meshgrid(i, j)
+    im, jm = np.meshgrid(i, j)
     # idx, idy = np.where(CE_array != 0)
     # Mask array based on the nondata value
     masked_CE = np.ma.masked_where(CE_array == 0, CE_array)
@@ -29,3 +30,21 @@ def find_grid_coordinates(CE_array: np.ndarray) -> pd.DataFrame:
     coordinates["CEid"] = pd.to_numeric(coordinates["CEid"])
     coordinates = coordinates.sort_values(by=["CEid"])
     return coordinates
+
+
+def get_lat_lon_CE(CE_fishnet_name: str) -> np.ndarray:
+    gdf = gpd.read_file(CE_fishnet_name)
+    centroids = gdf.centroid
+    x_coords = []
+    y_coords = []
+    for pp in centroids.values:
+        x_coords.append(pp.x)
+        y_coords.append(pp.y)
+    epsg_code = gdf.crs.srs
+    x, y = projections.utm_to_latlon(x_coords, y_coords,
+                                     epsg_code)
+    array_latlon = np.array([x, y]).T
+    # print(centroids)
+    # Convert utm to lat - lon
+
+    return array_latlon

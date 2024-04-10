@@ -661,10 +661,12 @@ class Basin:
         # Place the values into the dataset
         self.CEfishnet["i"] = coordinates["i"].values
         self.CEfishnet["j"] = coordinates["j"].values
+        # Get the lat/lon for each CE
+        latlon_array = CEs.get_lat_lon_CE(self._CEfishnet)
         # Create the carreauxEntier dataset
         self.carreauxEntiers = pd.DataFrame(columns=["CEid", "i", "j", "pctLacRiviere",
                                                      "pctForet", "pctMarais", "pctSolNu",
-                                                     "altitude", "pctImpermeable"],
+                                                     "altitude", "pctImpermeable","Longitude","Latitude"],
                                             index=coordinates.index,
                                             data=np.c_[coordinates["CEid"].values,
                                                        coordinates["i"].values,
@@ -674,7 +676,9 @@ class Basin:
                                                        pctWetlands,
                                                        pctSolNu,
                                                        self.CEfishnet["altitude"].values,
-                                                       pctImpermeable]
+                                                       pctImpermeable,
+                                                       latlon_array[:,0],
+                                                       latlon_array[:,1]]
                                             )
         # Change the values that must be integer types
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
