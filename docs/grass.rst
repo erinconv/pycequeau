@@ -88,12 +88,19 @@ Once imported, set the region by runnig the next command line:
   
   g.region -d raster=DEM
 
-OPTIONAL: If we have an existent stream nerwork, we can burn this vector file to make our process even more exact by running the next command:
+.. note::
 
-.. code-block:: bash 
-  
-  v.in.ogr input=path/to/your/project/folder/streams.shp output=streams
-  r.carve -n --overwrite raster=DEM vector=streams output=BurnedDEM
+    OPTIONAL: If we have an existent stream nerwork, we can burn this vector file to make our process even more exact by running the next command.
+
+    .. code-block:: bash 
+
+      v.in.ogr input=path/to/your/project/folder/streams.shp output=streams
+    
+    .. code-block:: bash 
+
+      r.carve -n --overwrite raster=DEM vector=streams output=BurnedDEM
+
+    Doing this step is highly recommended in basins where the surface is mostly flat and the flow direction must be corrected. If you do not have any reference stream network, we recommend download it form the following global dataset: https://www.hydrosheds.org/
 
 
 
@@ -149,6 +156,20 @@ To retrieve the subbasin raster, run the following command line
 .. code-block:: bash
   
   r.watershed --overwrite elevation=DEM threshold=THEREDHOLD drainage=DIR basin=CAT
+
+.. warning::
+
+  If the previous instruction does not provide the correct subbasin strcuture, the following command lines can solve the issue:
+
+  .. code::
+
+    r.stream.extract --overwrite elevation=DEM threshold=THEREDHOLD stream_raster=streams_r stream_vector=streams_v direction=DIR
+
+  .. code::
+
+    r.stream.basins --overwrite direction=DIR stream_rast=streams_r basins=CAT
+
+
 
 and this is the result
 
