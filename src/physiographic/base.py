@@ -881,12 +881,11 @@ class Basin:
                       for geom, value in zip(vector.geometry, vector['newCEid']))
         xmin, xmax, ymin, ymax = lyr.GetExtent()
         # Get the resolution to the new raster
-        pixel_size = self._dx
-        x_res = ceil((xmax-xmin)/pixel_size)
-        y_res = ceil((ymax-ymin)/pixel_size)
+        x_res = ceil((xmax-xmin)/self._dx)
+        y_res = ceil((ymax-ymin)/self._dy)
         # Get the rasterio transformer and rasterize
-        transform = rasterio.Affine(pixel_size, 0.0, xmin, 0.0,
-                                    (-1)*pixel_size, ymax)
+        transform = rasterio.Affine(self._dx, 0.0, xmin, 0.0,
+                                    (-1)*self._dy, ymax)
         rasterized = rasterio.features.rasterize(geom_value,
                                                  out_shape=(y_res, x_res),
                                                  fill=0,
