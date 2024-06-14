@@ -160,12 +160,16 @@ To retrieve the subbasin raster, run the following command line
 .. warning::
 
   If the previous instruction does not provide the correct subbasin strcuture, the following command lines can solve the issue:
+  
+  .. code-block:: bash
 
-  .. code::
+    g.extension extension=r.stream.basins
+
+  .. code-block:: bash
 
     r.stream.extract --overwrite elevation=DEM threshold=THEREDHOLD stream_raster=streams_r stream_vector=streams_v direction=DIR
 
-  .. code::
+  .. code-block:: bash
 
     r.stream.basins --overwrite direction=DIR stream_rast=streams_r basins=CAT
 
