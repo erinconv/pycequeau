@@ -149,6 +149,8 @@ class Parameters:
         # Convert the y to a string to a string and round irt to two decimals
         y_str = str(round(y[0], 2))
         y_str = y_str.replace(".", "")
+        if len(y_str) < 4:
+            y_str = y_str + "0"
         # Convert it back to an integer number
         y_int = int(y_str)
         return y_int
