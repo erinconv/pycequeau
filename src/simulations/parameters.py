@@ -262,7 +262,7 @@ class Parameters:
     def tc_giandotti(cls, basin_area: float,
                      main_channel_length: float,
                      height_differences: float) -> float:
-        r""" 
+        r"""
         This module uses the Giandotti (1934) formulation to compute the time of concentration:
 
         .. math::
@@ -302,7 +302,7 @@ class Parameters:
 
             T_{c} = 0.0078 L^{0.77}S^{-0.385}
 
-        Where :math:`L` is the length of the main channel (ft) in :math:`m`, :math:`S` is the mean 
+        Where :math:`L` is the length of the main channel (ft) in :math:`m`, :math:`S` is the mean
         slope of the basin in  :math:`\text{m m}^{-1}` which is computed as follows:
 
         .. math::
@@ -416,34 +416,58 @@ class Parameters:
 
     def set_fonte(self, values: np.ndarray, model: int):
         # Parameters for the cequeau model
+        self.fonte = {}
+        self.fonte["cequeau"] = {}
         # DEGREE-DAY
-        if model == 1:
-            self.fonte = {"cequeau": {
-                "strne_s": values[0],
-                "tfc_s": values[1],
-                "tfd_s": values[2],
-                "tsc_s": values[3],
-                "tsd_s": values[4],
-                "ttd": values[5],
-                "tts_s": values[6],
-                "jonei": self.option["jonei"],
-                "tmur": self.solInitial["tmur"],
-                "tstock": self.solInitial["tstock"]}
-            }
+        self.fonte["cequeau"]["strne_s"] = values[0]
+        self.fonte["cequeau"]["tfc_s"] = values[1]
+        self.fonte["cequeau"]["tfd_s"] = values[2]
+        self.fonte["cequeau"]["tsc_s"] = values[3]
+        self.fonte["cequeau"]["tsd_s"] = values[4]
+        self.fonte["cequeau"]["ttd"] = values[5]
+        self.fonte["cequeau"]["tts_s"] = values[6]
+        self.fonte["cequeau"]["jonei"] = self.option["jonei"]
+        self.fonte["cequeau"]["tmur"] = self.solInitial["tmur"]
+        self.fonte["cequeau"]["tstock"] = self.solInitial["tstock"]
+        
+        # UEB
+        self.fonte["UEB"] = {}
+        self.fonte["UEB"]["strne_s"] = values[0]
+        self.fonte["UEB"]["K_s"] = 0.15
+        self.fonte["UEB"]["z0"] = 0.003
+        self.fonte["UEB"]["aep"] = 0.2
+        self.fonte["UEB"]["K_sat"] = 350
+        self.fonte["UEB"]["rho_s"] = 450
+        self.fonte["UEB"]["melt_frac"] = 0.99
+        self.fonte["UEB"]["hours"] = 16
+        self.fonte["UEB"]["z"] = 2.0
+        self.fonte["UEB"]["avo"] = 0.8
+        self.fonte["UEB"]["airo"] = 0.6
+        self.fonte["UEB"]["Lc"] = 0.05
+        self.fonte["UEB"]["fstab"] = 1
+        self.fonte["UEB"]["D"] = 0.001
+        self.fonte["UEB"]["de"] = 0.4
+        self.fonte["UEB"]["snow_temp_method"] = 1
+        # Initial conditions
+        self.fonte["UEB"]["w"] = 0
+        self.fonte["UEB"]["ub"] = -2000
+        self.fonte["UEB"]["E"] = 0
+        self.fonte["UEB"]["tausn"] = 0
+        self.fonte["UEB"]["tsurf"] = 0
+        self.fonte["UEB"]["tave"] = 0
+        self.fonte["UEB"]["Mr"] = 0
+        self.fonte["UEB"]["albedo"] = 0.25
         # CEMANAIEGE
-        elif model == 2:
-            # Here we get the mean altitude from the
-            # basin structure
-            zmeds = self.basin_structure.carreauxPartiels["altitudeMoy"]
-            self.fonte = {"cemaNeige": {
-                "Kf": values[0],
-                "Tf": values[0],
-                "CTg": values[0],
-                "theta": values[0],
-                "QNBV": values[0],
-                "Zmed": np.array(zmeds, dtype=np.float32).tolist()
-            }
-            }
+        self.fonte["cemaNeige"] = {}
+        self.fonte["cemaNeige"]["strne"] = values[0]
+        self.fonte["cemaNeige"]["Kf"] = 15
+        self.fonte["cemaNeige"]["Tf"] = 0
+        self.fonte["cemaNeige"]["CTg"] = 0.85
+        self.fonte["cemaNeige"]["theta"] = 0.8
+        self.fonte["cemaNeige"]["Gseuil"] = 250*0.9
+        self.fonte["cemaNeige"]["Zmed"] = 300
+        
+        a = 1
 
     def set_evapo(self, values: np.ndarray, model: int):
         # CEQUEAU - THORNWAIT
@@ -489,7 +513,7 @@ class Parameters:
                         # This is true if the simulations starts in the winter
                         "tinit": 0}
             self.qualite = {"cequeau": {
-                            "coprom": values[0],
+                "coprom": values[0],
                             "colarg": values[1],
                             "temperat": temperat
                             }
