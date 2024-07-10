@@ -439,6 +439,7 @@ class Parameters:
         self.fonte["UEB"]["K_sat"] = 350
         self.fonte["UEB"]["rho_s"] = 450
         self.fonte["UEB"]["melt_frac"] = 0.99
+        self.fonte["UEB"]["melt_thr"] = 0
         self.fonte["UEB"]["hours"] = 16
         self.fonte["UEB"]["z"] = 2.0
         self.fonte["UEB"]["avo"] = 0.8
