@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import rasterstats as rs
 from src.core import utils as u
 from src.core import projections
 import geopandas as gpd
@@ -48,3 +49,18 @@ def get_lat_lon_CE(CE_fishnet_name: str) -> np.ndarray:
     # Convert utm to lat - lon
 
     return array_latlon
+
+
+def ComputeMeanSlope(gdf: gpd.GeoDataFrame,
+                     Slope_name: str,
+                     attr: str) -> np.ndarray:
+    gdf = gdf.sort_values(by=attr)
+    zonal_stats = rs.zonal_stats(gdf.geometry,
+                                 Slope_name,
+                                 stats=["mean"])
+    stat_array = np.zeros(len(zonal_stats))
+    for i in range(len(zonal_stats)):
+        stat_array[i] = zonal_stats[i]["mean"]
+
+    # gdf["meanSlope"] = 
+    return stat_array

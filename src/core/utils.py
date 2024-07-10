@@ -747,3 +747,38 @@ def ogr_to_gpd(shp: ogr.DataSource) -> gpd.GeoDataFrame:
     gdf = gpd.GeoDataFrame(df, crs=EPSG)
     print(gdf)
     return gdf
+
+
+def saveGTIFF(ref_TIF: str,
+              data_array: np.ndarray,
+              output_name: str):
+    ds = gdal.Open(ref_TIF, gdal.GA_ReadOnly)
+    [rows, cols] = data_array.shape
+    # Save the file depending on the file type name
+    type_name = data_array.dtype.base.name
+    if type_name in ["int16", "int32", "int64"]:
+        gdal_type = gdal.GDT_UInt32
+    elif type_name in ["float32", "float64"]:
+        gdal_type = gdal.GDT_Float32
+    # type_name = data_type.base.name
+    driver = gdal.GetDriverByName("GTiff")
+    outdata = driver.Create(output_name, cols, rows, 1, gdal_type)
+    # sets same geotransform as input
+    outdata.SetGeoTransform(ds.GetGeoTransform())
+    outdata.SetProjection(ds.GetProjection())  # sets same projection as input
+    outdata.GetRasterBand(1).WriteArray(data_array)
+    # if you want these values transparent
+    outdata.GetRasterBand(1).SetNoDataValue(-9999)
+    outdata.FlushCache()  # saves to disk!!
+
+
+def convert_slope(slope_file_path: str) -> np.ndarray:
+    ds = gdal.Open(slope_file_path, gdal.GA_ReadOnly)
+    band = ds.GetRasterBand(1)
+    nan_val = band.GetNoDataValue()
+    array_d = band.ReadAsArray()
+    # convert the slope from degrees to m/m -> atan(slope)
+    array_d[array_d == nan_val] = np.nan
+    array_d = np.deg2rad(array_d)
+    array_d = np.arctan(array_d)
+    return array_d
