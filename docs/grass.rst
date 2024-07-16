@@ -151,29 +151,19 @@ Now, let's run the following command line to obtain the watershed delineation co
 Retrieve the subbasin raster file.
 ----------------------------------
 
-To retrieve the subbasin raster, run the following command line
+To retrieve the subbasin raster, run the following command lines:  
 
 .. code-block:: bash
-  
-  r.watershed --overwrite elevation=DEM threshold=THEREDHOLD drainage=DIR basin=CAT
 
-.. warning::
+  g.extension extension=r.stream.basins
 
-  If the previous instruction does not provide the correct subbasin strcuture, the following command lines can solve the issue:
-  
-  .. code-block:: bash
+.. code-block:: bash
 
-    g.extension extension=r.stream.basins
+  r.stream.extract --overwrite elevation=DEM threshold=THEREDHOLD stream_raster=streams_r stream_vector=streams_v direction=DIR
 
-  .. code-block:: bash
-
-    r.stream.extract --overwrite elevation=DEM threshold=THEREDHOLD stream_raster=streams_r stream_vector=streams_v direction=DIR
-
-  .. code-block:: bash
+.. code-block:: bash
 
     r.stream.basins --overwrite direction=DIR stream_rast=streams_r basins=CAT
-
-
 
 and this is the result
 

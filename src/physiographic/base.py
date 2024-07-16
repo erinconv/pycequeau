@@ -683,8 +683,8 @@ class Basin:
                                               "newCEid")
         else:
             # There is no slope in the provided files
-            stat_array = np.empty(self.CEfishnet.shape[0])
-            stat_array = stat_array.fill(-9999)
+            stat_array = np.zeros([self.CEfishnet.shape[0]])
+            stat_array = stat_array - 9999
 
         # Get the lat/lon for each CE
         latlon_array = CEs.get_lat_lon_CE(self._CEfishnet)
