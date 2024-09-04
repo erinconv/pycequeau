@@ -756,7 +756,11 @@ def saveGTIFF(ref_TIF: str,
     [rows, cols] = data_array.shape
     # Save the file depending on the file type name
     type_name = data_array.dtype.base.name
-    if type_name in ["int16", "int32", "int64"]:
+    if type_name in ["uint8"]:
+        gdal_type = gdal.GDT_Byte
+    if type_name in ["int16"]:
+        gdal_type = gdal.GDT_UInt16
+    if type_name in ["int32", "int64"]:
         gdal_type = gdal.GDT_UInt32
     elif type_name in ["float32", "float64"]:
         gdal_type = gdal.GDT_Float32
@@ -782,3 +786,22 @@ def convert_slope(slope_file_path: str) -> np.ndarray:
     array_d = np.deg2rad(array_d)
     array_d = np.arctan(array_d)
     return array_d
+
+def reclassify_landcover(LC_file_path: str, classes_idx: list, output_tif_name: str):
+    ds = gdal.Open(LC_file_path, gdal.GA_ReadOnly)
+    band = ds.GetRasterBand(1)
+    nan_val = band.GetNoDataValue()
+    if nan_val == None:
+        nan_val = 0
+    array_d = band.ReadAsArray()
+    array_d[array_d==0] = nan_val
+    reclass_array = np.copy(array_d)
+    # This is class name for cequeau. Just for reference
+    # classes_name = ["forest","bare","wetlands","water","urban"]
+    # Loop into each of the classes from the land cover
+    for land_type,ceq_class in zip(classes_idx,[1,7,14,18,16]):
+        # idx = np.stack([land_type])
+        for idx in land_type:
+            reclass_array[array_d==idx] = ceq_class
+        # np.delete(a, idx[:, 1:])
+    saveGTIFF(LC_file_path,reclass_array,output_tif_name)

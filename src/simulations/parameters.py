@@ -466,7 +466,11 @@ class Parameters:
         self.fonte["cemaNeige"]["CTg"] = 0.85
         self.fonte["cemaNeige"]["theta"] = 0.8
         self.fonte["cemaNeige"]["Gseuil"] = 250*0.9
+        self.fonte["cemaNeige"]["Vmin"] = 0.5
         self.fonte["cemaNeige"]["Zmed"] = 300
+        #Initial conditions
+        self.fonte["cemaNeige"]["eTg"] = 0.1
+        self.fonte["cemaNeige"]["G"] = 0
         
         a = 1
 
