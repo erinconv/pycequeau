@@ -33,6 +33,7 @@ class Parameters:
         self.transfert = None
         self.fonte = None
         self.evapo = None
+        self.dli = None
         self.qualite = None
         self.main_channel_length = None
         self.time_of_concentrations = None
@@ -67,6 +68,7 @@ class Parameters:
     def create_parameter_structure(self):
         """_summary_
         """
+        self.set_longwave_radiation_parameters()
         self.parametres = {"option": self.option,
                            "sol": self.sol,
                            "solInitial": self.solInitial,
@@ -76,7 +78,8 @@ class Parameters:
                            "surface": self.surface,
                            "fonte": self.fonte,
                            "evapo": self.evapo,
-                           "qualite": self.qualite}
+                           "qualite": self.qualite,
+                           "dli": self.dli}
         with open(os.path.join(self.basin_structure.project_path,
                                "results", "parameters.json"), "w",
                   encoding="utf-8") as outfile:
@@ -93,6 +96,8 @@ class Parameters:
         self.option = {"ipassim": 24,
                        "moduleFonte": values[0],
                        "moduleEvapo": values[1],
+                       "moduleOmbrage": 0,
+                       "moduleDLI": 1,
                        "calculQualite": values[2],
                        "jonei": self._jonei,
                        "joeva": self._jonei}
@@ -429,7 +434,7 @@ class Parameters:
         self.fonte["cequeau"]["jonei"] = self.option["jonei"]
         self.fonte["cequeau"]["tmur"] = self.solInitial["tmur"]
         self.fonte["cequeau"]["tstock"] = self.solInitial["tstock"]
-        
+
         # UEB
         self.fonte["UEB"] = {}
         self.fonte["UEB"]["strne_s"] = values[0]
@@ -468,10 +473,10 @@ class Parameters:
         self.fonte["cemaNeige"]["Gseuil"] = 250*0.9
         self.fonte["cemaNeige"]["Vmin"] = 0.5
         self.fonte["cemaNeige"]["Zmed"] = 300
-        #Initial conditions
+        # Initial conditions
         self.fonte["cemaNeige"]["eTg"] = 0.1
         self.fonte["cemaNeige"]["G"] = 0
-        
+
         a = 1
 
     def set_evapo(self, values: np.ndarray, model: int):
@@ -501,6 +506,61 @@ class Parameters:
         elif model == 6:
             self.evapo = {"alpha": values[0],
                           "evnap": values[1]}
+
+    def set_longwave_radiation_parameters(self):
+        self.dli = {}
+        self.dli["m1"] = {}
+        self.dli["m2"] = {}
+        self.dli["m3"] = {}
+        self.dli["m4"] = {}
+        self.dli["m5"] = {}
+        self.dli["m6"] = {}
+        self.dli["m7"] = {}
+        self.dli["m8"] = {}
+
+        # Fill the parameters with default values
+        self.dli["m1"] = {}
+        self.dli["m1"]["u"] = 0
+        self.dli["m1"]["v"] = 1
+        self.dli["m1"]["a"] = 0.8171
+        # m2
+        self.dli["m2"]["u"] = 0.2184
+        self.dli["m2"]["v"] = 2.4311
+        self.dli["m2"]["a"] = 9.3645e-6
+        # m3
+        self.dli["m3"]["u"] = 0.17
+        self.dli["m3"]["v"] = 4
+        self.dli["m3"]["a"] = 0.2610
+        self.dli["m3"]["b"] = -7.77e-2
+        # m4
+        self.dli["m4"]["u"] = 0.17
+        self.dli["m4"]["v"] = 2
+        self.dli["m4"]["a"] = 0.74
+        self.dli["m4"]["b"] = 0.0065
+        # m5
+        self.dli["m5"]["u"] = 0.2187
+        self.dli["m5"]["v"] = 1.6689
+        self.dli["m5"]["a"] = 1.24
+        self.dli["m5"]["b"] = 0.1429
+        # m6
+        self.dli["m6"]["u"] = 0.1296
+        self.dli["m6"]["v"] = 4
+        self.dli["m6"]["a"] = 1.08
+        self.dli["m6"]["b"] = 2016
+        # m7
+        self.dli["m7"]["u"] = 0.1827
+        self.dli["m7"]["v"] = 3.4472
+        self.dli["m7"]["a"] = 46.5
+        self.dli["m7"]["b"] = 1.2
+        self.dli["m7"]["c"] = 3
+        self.dli["m7"]["d"] = 0.5
+        # m8
+        self.dli["m8"]["u"] = 0.1533
+        self.dli["m8"]["v"] = 4
+        self.dli["m8"]["a"] = 0.72
+        self.dli["m8"]["b"] = 0.0090
+        self.dli["m8"]["c"] = 0.078
+        return 0
 
     def set_qualite(self, values: np.ndarray, model=1):
         # CEQUEAU model
