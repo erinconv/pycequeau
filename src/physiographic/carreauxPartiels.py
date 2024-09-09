@@ -218,6 +218,4 @@ def save_outlet_point(project_path: str, CP_fishnet: gpd.GeoDataFrame) -> tuple:
 
 def compute_river_azimuth(p1: Point, p2: Point):
     angle = np.arctan2((p2.y - p1.y), (p2.x - p1.x))
-    radian = np.arctan((p2.y - p1.y)/(p2.x - p1.x))
-    # degrees = np.degrees(angle)
     return np.degrees(angle)

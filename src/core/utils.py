@@ -809,8 +809,6 @@ def reclassify_landcover(LC_file_path: str, classes_idx: list, output_tif_name: 
     return 0
 
 # Function to retrieve the outlet point of the basin
-
-
 def get_outlet_point(FAC_path: str):
     ds = gdal.Open(FAC_path, gdal.GA_ReadOnly)
     band = ds.GetRasterBand(1)
