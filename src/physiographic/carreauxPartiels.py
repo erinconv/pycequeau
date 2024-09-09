@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from src.core import utils as u
+from src.core import projections
 import geopandas as gpd
 from osgeo import gdal
 from shapely.geometry import Point, LineString
@@ -219,3 +220,20 @@ def save_outlet_point(project_path: str, CP_fishnet: gpd.GeoDataFrame) -> tuple:
 def compute_river_azimuth(p1: Point, p2: Point):
     angle = np.arctan2((p2.y - p1.y), (p2.x - p1.x))
     return np.degrees(angle)
+
+def get_lat_lon_CP(CP_fishnet_name: str) -> np.ndarray:
+    gdf = gpd.read_file(CP_fishnet_name)
+    centroids = gdf.centroid
+    x_coords = []
+    y_coords = []
+    for pp in centroids.values:
+        x_coords.append(pp.x)
+        y_coords.append(pp.y)
+    epsg_code = gdf.crs.srs
+    x, y = projections.utm_to_latlon(x_coords, y_coords,
+                                     epsg_code)
+    array_latlon = np.array([x, y]).T
+    # print(centroids)
+    # Convert utm to lat - lon
+
+    return array_latlon

@@ -749,6 +749,8 @@ class Basin:
         geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
         # Generate the stream network shp file and retrieve the river characteristics
         azimuth = CPs.create_cequeau_stream_network(self.project_path,0)
+        # Get the latituted and longitude centroids for each one of the CPs
+        latlon_array = CPs.get_lat_lon_CP(self._CPfishnet)
         self.CPfishnet = self.CPfishnet.reindex(
             columns=self.CPfishnet.columns.tolist() + ['i', 'j'])
         # Place the values into the dataset
@@ -762,7 +764,8 @@ class Basin:
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
                                                       "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
-                                                      "cumulArea", "pctImpermeable","azimutCoursEau"],
+                                                      "cumulArea", "pctImpermeable","azimutCoursEau",
+                                                      "Longitude", "Latitude"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -787,7 +790,9 @@ class Basin:
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
                                                         self.CPfishnet["cumulArea"].values,
                                                         pctImpermeable,
-                                                        azimuth["azimutCoursEau"].values
+                                                        azimuth["azimutCoursEau"].values,
+                                                        latlon_array[:, 0],
+                                                        latlon_array[:, 1]
                                                         ])
         # Change the values that must be integer types
         self.carreauxPartiels["idCE"] = np.array(
