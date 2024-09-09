@@ -1,9 +1,10 @@
+import os
 import numpy as np
 import pandas as pd
 from src.core import utils as u
 import geopandas as gpd
 from osgeo import gdal
-import os
+from shapely.geometry import Point, LineString
 
 
 def get_CP_coordinates(carreuxEntiers: pd.DataFrame,
@@ -94,3 +95,129 @@ def get_river_geometry(CPfishnet: gpd.GeoDataFrame,
     river_geometry["penteRiviere"] = 1000.0
 
     return river_geometry
+
+
+def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDataFrame:
+    """_summary_
+
+    Args:
+        area_th (float, optional): _description_. Defaults to 0.01.
+
+    Returns:
+        float: _description_
+    """
+    # Open the
+    CP_fishnet_name = os.path.join(project_path,
+                                   "geographic",
+                                   "CP_fishnet.shp")
+    CP_fishnet = gpd.read_file(CP_fishnet_name)
+    cp_struct_name = os.path.join(project_path,
+                                  "results",
+                                  "carreauxPartiels.csv")
+    carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
+    CP_fishnet["x_c"] = CP_fishnet.centroid.x
+    CP_fishnet["y_c"] = CP_fishnet.centroid.y
+
+    # Array to store the line shape
+    lines = np.zeros(len(CP_fishnet), dtype=LineString)
+    # Mask small streams
+    max_area = CP_fishnet["cumulArea"].max()
+    idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
+    CP_fishnet.index = CP_fishnet["newCPid"].values
+    carreaux_partiels.index = CP_fishnet["newCPid"].values
+    df_line = pd.DataFrame(columns=["names", "cumulArea", "slope", "azimutCoursEau"],
+                           data=np.empty(shape=[len(CP_fishnet), 4]),
+                           index=CP_fishnet.index)
+    df_line["cumulArea"] = CP_fishnet["cumulArea"].values
+    # Save the outlet point of the river
+    x_outlet, y_outlet = save_outlet_point(project_path, CP_fishnet)
+    # Start creating the stream files
+    for i, _ in CP_fishnet.iterrows():
+        cp_aval = carreaux_partiels.loc[i, "idCPAval"]
+        if cp_aval == 0:
+            p1 = Point(CP_fishnet.loc[i, "x_c"],
+                       CP_fishnet.loc[i, "y_c"])
+            p2 = Point(x_outlet, y_outlet)
+            lines[i-1] = LineString([p2, p1])
+            # carreaux_partiels["altitudeMoy"]
+            df_line.loc[i, "names"] = f"CP{i} to CP{cp_aval}"
+            slope = 0
+            df_line.loc[i, "slope"] = slope
+            # Compute river azimuth
+            df_line.loc[i, "azimutCoursEau"] = compute_river_azimuth(p1, p2)
+        else:
+            p1 = Point(CP_fishnet.loc[i, "x_c"],
+                       CP_fishnet.loc[i, "y_c"])
+            p2 = Point(CP_fishnet.loc[cp_aval, "x_c"],
+                       CP_fishnet.loc[cp_aval, "y_c"])
+            lines[i-1] = LineString([p2, p1])
+            df_line.loc[i, "names"] = f"CP{i} to CP{cp_aval}"
+            dh = carreaux_partiels.loc[i, "altitudeMoy"] - \
+                carreaux_partiels.loc[cp_aval, "altitudeMoy"]
+            df_line.loc[i, "slope"] = abs(dh)/lines[i-1].length
+            # Compute river azimuth
+            df_line.loc[i, "azimutCoursEau"] = compute_river_azimuth(p1, p2)
+
+    # df_line = df_line.loc[idx_small_area.values]
+    gpdf_line = gpd.GeoDataFrame(df_line,
+                                 geometry=lines,
+                                 crs=CP_fishnet.geometry.crs)
+    gpdf_line = gpdf_line.loc[idx_small_area.values]
+    # Open the outlet routes
+    outlet_file = os.path.join(project_path,
+                               "results",
+                               "outlet_routes.csv")
+    outlet_routes = pd.read_csv(outlet_file, header=None)
+    # find all the complete routes
+    idy, = np.where(outlet_routes.iloc[:, -1] != 0)
+    outlet_routes_complete = outlet_routes.iloc[idy, :]
+    # Compute the length of all the routes
+    lengths = []
+    # Find the largest CP with stream
+    idx_max = gpdf_line.index.max()
+    for i in range(len(outlet_routes_complete)):
+        routes = np.array(outlet_routes_complete.iloc[i, :])
+        routes = routes[routes < idx_max]
+        sub_gpdf = gpdf_line.loc[routes, :]
+        lengths.append(sub_gpdf.geometry.length.sum())
+    # Find the maximun length value
+    idx_longest_path = lengths.index(max(lengths))
+    main_route = np.array(outlet_routes_complete.iloc[idx_longest_path, :])
+    main_route = main_route[main_route < idx_max]
+    gpdf_line["main_path"] = 0
+    gpdf_line.loc[main_route, "main_path"] = 1
+    # Open the outlet routes
+    streams_file = os.path.join(project_path,
+                                "geographic",
+                                "streams_cequeau.shp")
+    gpdf_line.to_file(streams_file)
+    # main_channel_length = max(lengths)
+    # slope_channel = gpdf_line["slope"].where(
+    #     gpdf_line["slope"] > 0).mean()
+    return gpdf_line
+
+
+def save_outlet_point(project_path: str, CP_fishnet: gpd.GeoDataFrame) -> tuple:
+    FAC_path = os.path.join(project_path,
+                            "geographic",
+                            "FAC.tif")
+    x_outlet, y_outlet = u.get_outlet_point(FAC_path)
+    point_geom = np.array([Point(x_outlet, y_outlet)], dtype=Point)
+    outet_df = pd.DataFrame(data=np.array([[x_outlet, y_outlet]]),
+                            columns=["x", "y"])
+    outlet_gdf = gpd.GeoDataFrame(outet_df,
+                                  geometry=point_geom,
+                                  crs=CP_fishnet.geometry.crs)
+    # Save the outlet point
+    point_file = os.path.join(project_path,
+                              "geographic",
+                              "outlet_point.shp")
+    outlet_gdf.to_file(point_file)
+    return x_outlet, y_outlet
+
+
+def compute_river_azimuth(p1: Point, p2: Point):
+    angle = np.arctan2((p2.y - p1.y), (p2.x - p1.x))
+    radian = np.arctan((p2.y - p1.y)/(p2.x - p1.x))
+    # degrees = np.degrees(angle)
+    return np.degrees(angle)

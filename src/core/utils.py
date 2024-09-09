@@ -787,6 +787,7 @@ def convert_slope(slope_file_path: str) -> np.ndarray:
     array_d = np.arctan(array_d)
     return array_d
 
+
 def reclassify_landcover(LC_file_path: str, classes_idx: list, output_tif_name: str):
     ds = gdal.Open(LC_file_path, gdal.GA_ReadOnly)
     band = ds.GetRasterBand(1)
@@ -794,14 +795,28 @@ def reclassify_landcover(LC_file_path: str, classes_idx: list, output_tif_name: 
     if nan_val == None:
         nan_val = 0
     array_d = band.ReadAsArray()
-    array_d[array_d==0] = nan_val
+    array_d[array_d == 0] = nan_val
     reclass_array = np.copy(array_d)
     # This is class name for cequeau. Just for reference
     # classes_name = ["forest","bare","wetlands","water","urban"]
     # Loop into each of the classes from the land cover
-    for land_type,ceq_class in zip(classes_idx,[1,7,14,18,16]):
+    for land_type, ceq_class in zip(classes_idx, [1, 7, 14, 18, 16]):
         # idx = np.stack([land_type])
         for idx in land_type:
-            reclass_array[array_d==idx] = ceq_class
+            reclass_array[array_d == idx] = ceq_class
         # np.delete(a, idx[:, 1:])
-    saveGTIFF(LC_file_path,reclass_array,output_tif_name)
+    saveGTIFF(LC_file_path, reclass_array, output_tif_name)
+    return 0
+
+# Function to retrieve the outlet point of the basin
+
+
+def get_outlet_point(FAC_path: str):
+    ds = gdal.Open(FAC_path, gdal.GA_ReadOnly)
+    band = ds.GetRasterBand(1)
+    array_d = band.ReadAsArray()
+    i, j = np.where(array_d == np.amax(array_d))
+    xoff, a, b, yoff, d, e = ds.GetGeoTransform()
+    xp = a * j[0] + b * i[0] + xoff
+    yp = d * j[0] + e * i[0] + yoff
+    return xp, yp

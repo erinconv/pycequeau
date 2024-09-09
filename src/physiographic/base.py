@@ -747,6 +747,8 @@ class Basin:
         # self.CPfishnet = self.CPfishnet[self.CPfishnet["newCPid"] != 0]
         # Get river geometry
         geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
+        # Generate the stream network shp file and retrieve the river characteristics
+        azimuth = CPs.create_cequeau_stream_network(self.project_path,0)
         self.CPfishnet = self.CPfishnet.reindex(
             columns=self.CPfishnet.columns.tolist() + ['i', 'j'])
         # Place the values into the dataset
@@ -760,7 +762,7 @@ class Basin:
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
                                                       "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
-                                                      "cumulArea", "pctImpermeable"],
+                                                      "cumulArea", "pctImpermeable","azimutCoursEau"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -784,7 +786,8 @@ class Basin:
                                                         cumulates["cumulPctSuperficieMaraisAmont"].values,
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
                                                         self.CPfishnet["cumulArea"].values,
-                                                        pctImpermeable
+                                                        pctImpermeable,
+                                                        azimuth["azimutCoursEau"].values
                                                         ])
         # Change the values that must be integer types
         self.carreauxPartiels["idCE"] = np.array(
