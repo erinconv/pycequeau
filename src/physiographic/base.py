@@ -748,7 +748,7 @@ class Basin:
         # Get river geometry
         geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
         # Generate the stream network shp file and retrieve the river characteristics
-        azimuth = CPs.create_cequeau_stream_network(self.project_path,0)
+        azimuth = CPs.create_cequeau_stream_network(self.project_path, self.CPfishnet, self.rtable, 0)
         # Get the latituted and longitude centroids for each one of the CPs
         latlon_array = CPs.get_lat_lon_CP(self._CPfishnet)
         self.CPfishnet = self.CPfishnet.reindex(

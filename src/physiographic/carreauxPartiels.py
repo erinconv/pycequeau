@@ -98,7 +98,10 @@ def get_river_geometry(CPfishnet: gpd.GeoDataFrame,
     return river_geometry
 
 
-def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDataFrame:
+def create_cequeau_stream_network(project_path: str,
+                                  CP_fishnet: gpd.GeoDataFrame,
+                                  rtable: pd.DataFrame, 
+                                  area_th=0.01) -> gpd.GeoDataFrame:
     """_summary_
 
     Args:
@@ -108,14 +111,14 @@ def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDat
         float: _description_
     """
     # Open the
-    CP_fishnet_name = os.path.join(project_path,
-                                   "geographic",
-                                   "CP_fishnet.shp")
-    CP_fishnet = gpd.read_file(CP_fishnet_name)
-    cp_struct_name = os.path.join(project_path,
-                                  "results",
-                                  "carreauxPartiels.csv")
-    carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
+    # CP_fishnet_name = os.path.join(project_path,
+    #                                "geographic",
+    #                                "CP_fishnet.shp")
+    # CP_fishnet = gpd.read_file(CP_fishnet_name)
+    # cp_struct_name = os.path.join(project_path,
+    #                               "results",
+    #                               "carreauxPartiels.csv")
+    # carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
     CP_fishnet["x_c"] = CP_fishnet.centroid.x
     CP_fishnet["y_c"] = CP_fishnet.centroid.y
 
@@ -125,7 +128,7 @@ def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDat
     max_area = CP_fishnet["cumulArea"].max()
     idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
     CP_fishnet.index = CP_fishnet["newCPid"].values
-    carreaux_partiels.index = CP_fishnet["newCPid"].values
+    # carreaux_partiels.index = CP_fishnet["newCPid"].values
     df_line = pd.DataFrame(columns=["names", "cumulArea", "slope", "azimutCoursEau"],
                            data=np.empty(shape=[len(CP_fishnet), 4]),
                            index=CP_fishnet.index)
@@ -134,7 +137,8 @@ def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDat
     x_outlet, y_outlet = save_outlet_point(project_path, CP_fishnet)
     # Start creating the stream files
     for i, _ in CP_fishnet.iterrows():
-        cp_aval = carreaux_partiels.loc[i, "idCPAval"]
+        # cp_aval = carreaux_partiels.loc[i, "idCPAval"]
+        cp_aval = rtable.loc[i, "downstreamCPs"]
         if cp_aval == 0:
             p1 = Point(CP_fishnet.loc[i, "x_c"],
                        CP_fishnet.loc[i, "y_c"])
@@ -153,8 +157,8 @@ def create_cequeau_stream_network(project_path: str, area_th=0.01) -> gpd.GeoDat
                        CP_fishnet.loc[cp_aval, "y_c"])
             lines[i-1] = LineString([p2, p1])
             df_line.loc[i, "names"] = f"CP{i} to CP{cp_aval}"
-            dh = carreaux_partiels.loc[i, "altitudeMoy"] - \
-                carreaux_partiels.loc[cp_aval, "altitudeMoy"]
+            dh = CP_fishnet.loc[i, "altitude"] - \
+                CP_fishnet.loc[cp_aval, "altitude"]
             df_line.loc[i, "slope"] = abs(dh)/lines[i-1].length
             # Compute river azimuth
             df_line.loc[i, "azimutCoursEau"] = compute_river_azimuth(p1, p2)
