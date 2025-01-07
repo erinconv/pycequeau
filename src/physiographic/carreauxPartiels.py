@@ -94,3 +94,21 @@ def get_river_geometry(CPfishnet: gpd.GeoDataFrame,
     river_geometry["penteRiviere"] = 1000.0
 
     return river_geometry
+
+## Get long_lat of CP for Canopy module in CEQUEAU
+def get_lat_lon_CP(CP_fishnet_name: str) -> np.ndarray:
+    gdf = gpd.read_file(CP_fishnet_name)
+    centroids = gdf.centroid
+    x_coords = []
+    y_coords = []
+    for pp in centroids.values:
+        x_coords.append(pp.x)
+        y_coords.append(pp.y)
+    epsg_code = gdf.crs.srs
+    x, y = projections.utm_to_latlon(x_coords, y_coords,
+                                     epsg_code)
+    array_latlonCP = np.array([x, y]).T
+    # print(centroids)
+    # Convert utm to lat - lon
+
+    return array_latlonCP
