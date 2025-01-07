@@ -522,6 +522,34 @@ def mean_altitudes(CE_fishnet: gpd.GeoDataFrame,
     CP_fishnet.loc[:, "altitude"] = [s['mean'] for s in stats_CP]
     return CP_fishnet, CE_fishnet
 
+def mean_canopy(CE_fishnet: gpd.GeoDataFrame,
+                   CP_fishnet: gpd.GeoDataFrame,
+                   Canopy: str):
+    """_summary_
+
+    Args:
+        CE_fishnet (gpd.GeoDataFrame): _description_
+        CP_fishnet (gpd.GeoDataFrame): _description_
+        Canopy (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Add aspect column to each dataset
+    CE_fishnet = CE_fishnet.reindex(
+        columns=CE_fishnet.columns.tolist() + ['Canopy'])
+    CE_fishnet["Canopy"] = None
+    CP_fishnet = CP_fishnet.reindex(
+        columns=CP_fishnet.columns.tolist() + ['Canopy'])
+    CP_fishnet["Canopy"] = None
+
+    # Compute the zonal statistics
+    stats_CE = rs.zonal_stats(CE_fishnet, Canopy, stats=['mean'])
+    CE_fishnet.loc[:, "Canopy"] = [s['mean'] for s in stats_CE]
+    stats_CP = rs.zonal_stats(CP_fishnet, Canopy, stats=['mean'])
+    CP_fishnet.loc[:, "Canopy"] = [s['mean'] for s in stats_CP]
+    return CP_fishnet, CE_fishnet
+
 # def main_path(flow_dir: np.ndarray,
 #               flow_acc: np.ndarray,
 #               flow_th: float) -> np.ndarray:
