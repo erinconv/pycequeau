@@ -156,6 +156,8 @@ class Basin:
             self._project_path, "geographic", file_list[3])
         self._SubBasins = os.path.join(
             self._project_path, "geographic", file_list[4])
+        self._Canopy = os.path.join(
+            self._project_path, "geographic", file_list[5])
         # self._Waterbodies = os.path.join(
         #     self._project_path, "geographic", file_list[5])
         # self._Wetlands = os.path.join(
@@ -484,6 +486,9 @@ class Basin:
         # Compute the mean altitudes
         self.CPfishnet, self.CEfishnet = CPfs.mean_altitudes(
             self.CEfishnet, self.CPfishnet, self._DEM)
+        # Compute the mean canopy
+        self.CPfishnet, self.CEfishnet = CPfs.mean_canopy(
+            self.CEfishnet, self.CPfishnet, self._Canopy)
         # Add the table to the structure
         # self.rtable = rtable
         # self.outlet_routes = outlet_routes
@@ -692,7 +697,7 @@ class Basin:
         self.carreauxEntiers = pd.DataFrame(columns=["CEid", "i", "j", "pctLacRiviere",
                                                      "pctForet", "pctMarais", "pctSolNu",
                                                      "altitude", "pctImpermeable", "meanSlope",
-                                                     "Longitude", "Latitude"],
+                                                     "Longitude", "Latitude","Canopy"],
                                             index=coordinates.index,
                                             data=np.c_[coordinates["CEid"].values,
                                                        coordinates["i"].values,
@@ -705,7 +710,8 @@ class Basin:
                                                        pctImpermeable,
                                                        stat_array,
                                                        latlon_array[:, 0],
-                                                       latlon_array[:, 1]]
+                                                       latlon_array[:, 1],
+                                                       self.CEfishnet["Canopy"].values]
                                             )
         # Change the values that must be integer types
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
@@ -760,7 +766,7 @@ class Basin:
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
                                                       "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
-                                                      "cumulArea", "pctImpermeable"],
+                                                      "cumulArea", "pctImpermeable",'Canopy'],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -784,7 +790,8 @@ class Basin:
                                                         cumulates["cumulPctSuperficieMaraisAmont"].values,
                                                         cumulates["cumulPctSuperficieForetAmont"].values,
                                                         self.CPfishnet["cumulArea"].values,
-                                                        pctImpermeable
+                                                        pctImpermeable,
+                                                        self.CPfishnet["Canopy"].values
                                                         ])
         # Change the values that must be integer types
         self.carreauxPartiels["idCE"] = np.array(
