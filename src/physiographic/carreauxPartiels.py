@@ -242,16 +242,3 @@ def get_lat_lon_CP(CP_fishnet_name: str) -> np.ndarray:
     # Convert utm to lat - lon
 
     return array_latlon
-
-def ComputeMeanCanopy(gdf: gpd.GeoDataFrame,
-                      Canopy_name: str,
-                      attr: str) -> np.ndarray:
-    gdf = gdf.sort_values(by=attr)
-    zonal_stats = rs.zonal_stats(gdf.geometry,
-                                 Canopy_name,
-                                 stats=["mean"])
-    stat_canopy_array_cp = np.zeros(len(zonal_stats))
-    for i in range(len(zonal_stats)):
-        stat_canopy_array_cp[i] = zonal_stats[i]["mean"]
-    # gdf["meanCanopy"]
-    return  stat_canopy_array_cp
