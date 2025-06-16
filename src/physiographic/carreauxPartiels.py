@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import rasterstats as rs
 from src.core import utils as u
 from src.core import projections
 import geopandas as gpd
