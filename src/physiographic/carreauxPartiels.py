@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+import rasterstats as rs
 from src.core import utils as u
 from src.core import projections
 import geopandas as gpd
@@ -249,9 +250,8 @@ def ComputeMeanCanopy(gdf: gpd.GeoDataFrame,
     zonal_stats = rs.zonal_stats(gdf.geometry,
                                  Canopy_name,
                                  stats=["mean"])
-    stat_canopy_array = np.zeros(len(zonal_stats))
+    stat_canopy_array_cp = np.zeros(len(zonal_stats))
     for i in range(len(zonal_stats)):
-        stat_canopy_array[i] = zonal_stats[i]["mean"]
-
-    # gdf["meanCanopy"] = 
-    return  stat_canopy_array
+        stat_canopy_array_cp[i] = zonal_stats[i]["mean"]
+    # gdf["meanCanopy"]
+    return  stat_canopy_array_cp
