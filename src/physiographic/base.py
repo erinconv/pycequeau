@@ -498,6 +498,8 @@ class Basin:
             # There is no canopy in the provided files
             self.CPfishnet['Canopy']  = np.zeros([self.CPfishnet.shape[0]])
             self.CPfishnet['Canopy']  = self.CPfishnet['Canopy']  - 9999
+            self.CEfishnet['Canopy']  = np.zeros([self.CEfishnet.shape[0]])
+            self.CEfishnet['Canopy']  = self.CEfishnet['Canopy']  - 9999
 
         # Add the table to the structure
         # self.rtable = rtable
