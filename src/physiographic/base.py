@@ -156,8 +156,6 @@ class Basin:
             self._project_path, "geographic", file_list[3])
         self._SubBasins = os.path.join(
             self._project_path, "geographic", file_list[4])
-        self._Canopy = os.path.join(
-            self._project_path, "geographic", file_list[5])
         # self._Waterbodies = os.path.join(
         #     self._project_path, "geographic", file_list[5])
         # self._Wetlands = os.path.join(
@@ -486,9 +484,6 @@ class Basin:
         # Compute the mean altitudes
         self.CPfishnet, self.CEfishnet = CPfs.mean_altitudes(
             self.CEfishnet, self.CPfishnet, self._DEM)
-        # Compute the mean canopy
-        self.CPfishnet, self.CEfishnet = CPfs.mean_canopy(
-            self.CEfishnet, self.CPfishnet, self._Canopy)
         # Add the table to the structure
         # self.rtable = rtable
         # self.outlet_routes = outlet_routes
@@ -691,13 +686,28 @@ class Basin:
             stat_array = np.zeros([self.CEfishnet.shape[0]])
             stat_array = stat_array - 9999
 
+        # Add canopy height as optional
+        # Check if the canopy file was provided
+        canopy_file_path = os.path.join(self._project_path,
+                                       "geographic",
+                                       "Canopy.tif")
+        if os.path.isfile(canopy_file_path):
+            stat_canopy_array = CEs.ComputeMeanCanopy(self.CEfishnet,
+                                              canopy_file_path,
+                                              "newCEid")
+        else:
+            # There is no canopy in the provided files
+            stat_canopy_array = np.zeros([self.CEfishnet.shape[0]])
+            stat_canopy_array = stat_canopy_array - 9999
+
+
         # Get the lat/lon for each CE
         latlon_array = CEs.get_lat_lon_CE(self._CEfishnet)
         # Create the carreauxEntier dataset
         self.carreauxEntiers = pd.DataFrame(columns=["CEid", "i", "j", "pctLacRiviere",
                                                      "pctForet", "pctMarais", "pctSolNu",
-                                                     "altitude", "pctImpermeable", "meanSlope",
-                                                     "Longitude", "Latitude","Canopy"],
+                                                     "altitude", "pctImpermeable", "meanSlope","meanCanopy",
+                                                     "Longitude", "Latitude"],
                                             index=coordinates.index,
                                             data=np.c_[coordinates["CEid"].values,
                                                        coordinates["i"].values,
@@ -709,9 +719,10 @@ class Basin:
                                                        self.CEfishnet["altitude"].values,
                                                        pctImpermeable,
                                                        stat_array,
+                                                       stat_canopy_array,
                                                        latlon_array[:, 0],
                                                        latlon_array[:, 1],
-                                                       self.CEfishnet["Canopy"].values]
+                                                       ]
                                             )
         # Change the values that must be integer types
         self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
@@ -762,6 +773,21 @@ class Basin:
         # Place the values into the dataset
         self.CPfishnet["i"] = coordinates["i"].values
         self.CPfishnet["j"] = coordinates["j"].values
+
+        # Add canopy height as optional
+        # Check if the canopy file was provided
+        canopy_file_path = os.path.join(self._project_path,
+                                       "geographic",
+                                       "Canopy.tif")
+        if os.path.isfile(canopy_file_path):
+            stat_canopy_array_cp = CPs.ComputeMeanCanopy(self.CPfishnet,
+                                              canopy_file_path,
+                                              "newCPid")
+        else:
+            # There is no canopy in the provided files
+            stat_canopy_array_cp = np.zeros([self.CPfishnet.shape[0]])
+            stat_canopy_array_cp = stat_canopy_array_cp - 9999
+        
         # Create the carreauxPartiel dataset
         self.carreauxPartiels = pd.DataFrame(columns=["CPid", "i", "j", "code",
                                                       "pctSurface", "idCPAval", "idCPsAmont",
@@ -770,8 +796,8 @@ class Basin:
                                                       "longueurCoursEauPrincipal", "largeurCoursEauPrincipal",
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
                                                       "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
-                                                      "cumulArea", "pctImpermeable","azimutCoursEau",
-                                                      "Longitude", "Latitude","Canopy"],
+                                                      "cumulArea", "pctImpermeable","azimutCoursEau","meanCanopy",
+                                                      "Longitude", "Latitude"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -797,9 +823,9 @@ class Basin:
                                                         self.CPfishnet["cumulArea"].values,
                                                         pctImpermeable,
                                                         azimuth["azimutCoursEau"].values,
+                                                        stat_canopy_array_cp,
                                                         latlon_array[:, 0],
-                                                        latlon_array[:, 1],
-                                                        self.CPfishnet["Canopy"].values
+                                                        latlon_array[:, 1]
                                                         ])
         # Change the values that must be integer types
         self.carreauxPartiels["idCE"] = np.array(
