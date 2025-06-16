@@ -65,3 +65,4 @@ def ComputeMeanSlope(gdf: gpd.GeoDataFrame,
     # gdf["meanSlope"] = 
     return stat_array
 
+
