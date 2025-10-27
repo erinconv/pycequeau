@@ -1,16 +1,20 @@
 name: Python Package using Conda in Windows
 
-on: [push]
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.7
+      - name: Set up Python 3.8
         uses: actions/setup-python@v3
         with:
-          python-version: 3.7
+          python-version: 3.8
       - name: Install dependencies
         run: |
           C:\Miniconda\condabin\conda.bat env update --file environment.yml --name base
