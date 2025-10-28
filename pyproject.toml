@@ -4,6 +4,54 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "pycequeau"
+version = "0.0.2"
+description = "A library that obtains the necessary files to build and run the CEQUEAU hydrological-water temperature model"
 authors = [{name = "Eisinhower Rincon", email = "eisinhower.rincon@inrs.ca"}]
-dynamic = ["version", "description"]
 readme = {file = "README.rst", content-type = "text/x-rst"}
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Hydrology",
+]
+dependencies = [
+    "pyproj",
+    "xarray",
+    "scipy",
+    "matplotlib",
+    "shapely",
+    "geopandas",
+    "rasterstats",
+    "netcdf4",
+    "pytest",
+    "autopep8",
+    "ipykernel",
+]
+
+[project.urls]
+Homepage = "https://github.com/erinconv/pycequeau"
+Repository = "https://github.com/erinconv/pycequeau"
+Documentation = "https://pycequeau.readthedocs.io/"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "autopep8",
+    "ipykernel",
+]
+
+[tool.flit.sdist]
+include = [
+    "docs/",
+    "matlab/",
+    "*.rst",
+    "*.yml",
+    "*.yaml",
+]
