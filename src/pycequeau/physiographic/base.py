@@ -9,11 +9,11 @@ import geopandas as gpd
 import rasterstats as rs
 import matplotlib.pyplot as plt
 import rasterio
-from src.physiographic import carreauxEntiers as CEs
-from src.physiographic import carreauxPartiels as CPs
-from src.physiographic import CPfishnet as CPfs
-from src.core import utils as u
-from src.core import projections as ceqproj
+from . import carreauxEntiers as CEs
+from . import carreauxPartiels as CPs
+from . import CPfishnet as CPfs
+from ..core import utils as u
+from ..core import projections as ceqproj
 # import sys
 # import rasterio
 # from rasterio.features import shapes

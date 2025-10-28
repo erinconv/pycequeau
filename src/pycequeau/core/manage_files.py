@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from osgeo import gdal, ogr, osr
-from src.core.netcdf import fix_calendar
+from .netcdf import fix_calendar
 from .units import (
     units_ERA,
     units_CORDEX

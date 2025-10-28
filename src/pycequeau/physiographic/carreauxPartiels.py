@@ -1,8 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
-from src.core import utils as u
-from src.core import projections
+from ..core import utils as u
+from ..core import projections
 import geopandas as gpd
 from osgeo import gdal
 from shapely.geometry import Point, LineString

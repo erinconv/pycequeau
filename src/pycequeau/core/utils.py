@@ -8,7 +8,7 @@ from osgeo import gdal, ogr, osr
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.validation import make_valid, explain_validity
-from src.core import projections
+from . import projections
 # from shapely.validation import make_valid, explain_validity
 # import xarray as xr
 # MultiPolygon

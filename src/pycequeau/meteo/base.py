@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from pyproj import Proj
-from src.physiographic.base import Basin
-from src.core import utils as u
+from ..physiographic.base import Basin
+from ..core import utils as u
 # Base class for the meteo module
 
 

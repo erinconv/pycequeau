@@ -7,9 +7,9 @@ import xarray as xr
 import geopandas as gpd
 from shapely.geometry import Point
 from osgeo import gdal, ogr
-from src.core import projections
-from src.core import manage_files
-from src.physiographic.base import Basin
+from ..core import projections
+from ..core import manage_files
+from ..physiographic.base import Basin
 from .base import Meteo
 from cftime import datetime
 from ._stations import (

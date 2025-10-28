@@ -7,8 +7,8 @@ import geopandas as gpd
 import xarray as xr
 import pandas as pd
 from shapely.geometry import Point, LineString
-from src.physiographic.base import Basin
-from src.core import projections
+from ..physiographic.base import Basin
+from ..core import projections
 # import shapely.geometry
 
 
