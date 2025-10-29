@@ -1,7 +1,7 @@
-src
-===
+pycequeau
+=========
 
 .. toctree::
    :maxdepth: 4
 
-   src
+   pycequeau
