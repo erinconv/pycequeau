@@ -1,7 +1,11 @@
 from __future__ import annotations
 import os
 import json
+import re
+import requests
+from urllib.parse import quote
 from math import ceil, floor
+import xml.etree.ElementTree as ET
 from osgeo import gdal, ogr
 import pandas as pd
 import numpy as np
@@ -19,6 +23,230 @@ from ..core import projections as ceqproj
 # from rasterio.features import shapes
 # from shapely.geometry import shape
 
+class SetupProject:
+    """_summary_
+    """
+    def __init__(self, project_folder: str):
+        self._project_path = project_folder
+        self._project_extent= None
+
+    # Check if the project folder exists, otherwise create it
+
+    # Create project
+    def create_project(self):
+        self._check_project_structure()
+        self._download_dem()
+        return 
+
+    def _check_project_structure(self):
+        """_summary_
+
+        Raises:
+            ValueError: _description_
+
+        Returns:
+            _type_: _description_
+        """
+        local_dirs = os.listdir(self._project_path)
+        if not "geographic" in local_dirs:
+            os.mkdir(os.path.join(self._project_path, "geographic"))
+        if not "meteo" in local_dirs:
+            os.mkdir(os.path.join(self._project_path, "meteo"))
+        if not "results" in local_dirs:
+            os.mkdir(os.path.join(self._project_path, "results"))
+
+    # Setter to define the extent of the project
+    @property
+    def project_extent(self):
+        return self._project_path
+
+    @project_extent.setter
+    def project_extent(self, extent: tuple):
+        self._project_extent = extent
+
+    def _list_s3_prefixes(self, bucket: str, prefix: str, delimiter: str = '/') -> list:
+        """List all prefixes (folders) in an S3 bucket using REST API."""
+        base_url = f"https://{bucket}.s3.eu-central-1.amazonaws.com/"
+        
+        # S3 REST API parameters
+        params = {
+            'list-type': '2',
+            'prefix': prefix,
+            'delimiter': delimiter,
+            'max-keys': '1000'
+        }
+        
+        prefixes = []
+        continuation_token = None
+        
+        while True:
+            if continuation_token:
+                params['continuation-token'] = continuation_token
+            # Build query string
+            query_string = '&'.join([f"{k}={quote(v)}" for k, v in params.items() if v])
+            url = f"{base_url}?{query_string}"
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            # Parse XML response (S3 returns XML)
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.text)
+            # Find all CommonPrefixes
+            ns = {'': 'http://s3.amazonaws.com/doc/2006-03-01/'}
+            for prefix_elem in root.findall('.//CommonPrefixes/Prefix', ns):
+                prefixes.append(prefix_elem.text)
+            # Check for continuation token
+            is_truncated = root.find('.//IsTruncated', ns)
+            if is_truncated is None or is_truncated.text != 'true':
+                break
+            next_token = root.find('.//NextContinuationToken', ns)
+            if next_token is not None:
+                continuation_token = next_token.text
+        return prefixes
+
+    def _parse_tile_coordinates(self, prefix: str):
+        """
+        Parse tile coordinates from Copernicus DSM folder prefix.
+        Format: Copernicus_DSM_COG_10_N{lat}_{dec}_E{lon}_{dec}_DEM/
+        Example: Copernicus_DSM_COG_10_N00_00_E006_00_DEM/ -> N00.00, E006.00
+        Or: Copernicus_DSM_COG_10_N48_00_W070_00_DEM/ -> N48.00, W070.00
+        """
+        # Remove trailing slash
+        base = prefix.rstrip('/')
+        # Try to find coordinate patterns
+        # Look for patterns like N48_00_E006_00 or N00_00_E006_00
+        lon_pattern = r'([EW])(\d{3})_(\d{2})'
+        lat_pattern = r'([NS])(\d{2})_(\d{2})'
+        lon_match = re.search(lon_pattern, base)
+        lat_match = re.search(lat_pattern, base)
+        if lon_match and lat_match:
+            lon_dir = lon_match.group(1)
+            lon_deg = int(lon_match.group(2))
+            lon_dec = int(lon_match.group(3))
+            lat_dir = lat_match.group(1)
+            lat_deg = int(lat_match.group(2))
+            lat_dec = int(lat_match.group(3))
+            # Convert to decimal degrees
+            lon = lon_deg + lon_dec / 100.0
+            lat = lat_deg + lat_dec / 100.0
+            # Apply direction
+            if lon_dir == 'W':
+                lon = -lon
+            if lat_dir == 'S':
+                lat = -lat
+            return lon, lat
+        else:
+            return None, None
+
+    def _tile_intersects_bounds(self, 
+                               tile_lon: float,
+                               tile_lat: float,
+                               min_lon: float,
+                               max_lon: float,
+                               min_lat: float,
+                               max_lat: float):
+        """
+        Check if a tile intersects with the bounding box.
+        Assume tiles are 1x1 degree.
+        """
+        # Tile covers [tile_lon, tile_lon+1] x [tile_lat, tile_lat+1]
+        tile_max_lon = tile_lon + 1
+        tile_max_lat = tile_lat + 1
+        # Check for intersection
+        return not (tile_max_lon < min_lon or tile_lon > max_lon or 
+                    tile_max_lat < min_lat or tile_lat > max_lat)
+
+    def _list_s3_objects(self, bucket: str, prefix: str):
+        """List all objects in an S3 bucket prefix using REST API."""
+        base_url = f"https://{bucket}.s3.eu-central-1.amazonaws.com/"
+        
+        params = {
+            'list-type': '2',
+            'prefix': prefix,
+            'max-keys': '1000'
+        }
+        
+        objects = []
+        try:
+            # Build query string
+            query_string = '&'.join([f"{k}={quote(v)}" for k, v in params.items()])
+            url = f"{base_url}?{query_string}"
+            response = requests.get(url, timeout=50)
+            response.raise_for_status()
+            # Parse XML response
+            root = ET.fromstring(response.text)
+            ns = {'': 'http://s3.amazonaws.com/doc/2006-03-01/'}
+            for content in root.findall('.//Contents', ns):
+                key = content.find('Key', ns).text
+                size = int(content.find('Size', ns).text)
+                objects.append((key, size))
+        
+        except Exception as e:
+            print(f"Error listing objects: {e}")
+            return []
+        return objects
+
+    def _download_s3_object(self, bucket: str, key: str, output_path: str):
+        """Download an object from S3 using REST API."""
+        url = f"https://{bucket}.s3.eu-central-1.amazonaws.com/{key}"
+        try:
+            response = requests.get(url, stream=True, timeout=300)
+            response.raise_for_status()
+            with open(output_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            return True
+        except Exception as e:
+            print(f"Error downloading: {e}")
+            return False
+
+    def _download_dem(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
+        min_lon = self._project_extent[0]
+        max_lon = self._project_extent[1]
+        min_lat = self._project_extent[2]
+        max_lat = self._project_extent[3]
+        matched_tiles = []
+        all_tiles_info = []  # Store all tiles for debugging
+        prefixes = self._list_s3_prefixes('copernicus-dem-30m', 'Copernicus_DSM_COG_10')
+        for prefix in prefixes:
+            tile_lon, tile_lat = self._parse_tile_coordinates(prefix)
+            all_tiles_info.append((prefix, tile_lon, tile_lat))
+            if tile_lon is not None and tile_lat is not None:
+                if self._tile_intersects_bounds(tile_lon, tile_lat, min_lon, max_lon, min_lat, max_lat):
+                    matched_tiles.append((prefix, tile_lon, tile_lat))
+        print(f"\n{'='*70}")
+        print(f"Matched {len(matched_tiles)} tiles for your region:")
+        print(f"{'='*70}")
+        # Make sure that the COP_DEM fodler exist inside the geographic folder
+        cop_dem = os.path.join(self._project_path, "geographic", "COP_DEM")
+        os.makedirs(cop_dem, exist_ok=True)
+        if matched_tiles:
+            for prefix, tile_lon, tile_lat in matched_tiles:
+                # Get the main DEM file from this tile folder
+                # The main file is: prefix/Copernicus_DSM_COG_10_..._DEM.tif
+                # List files in this folder to find the main DEM
+                tile_objects = self._list_s3_objects('copernicus-dem-30m', prefix)
+                if tile_objects:
+                    for key, size in tile_objects:
+                        # Look for the main DEM file (not aux files, not previews)
+                        if key.endswith('_DEM.tif') and 'AUXFILES' not in key and 'PREVIEW' not in key:
+                            filename = key.split('/')[-1]
+                            output_path = os.path.join(cop_dem, filename)
+                            # Skip if file already exists
+                            if os.path.exists(output_path):
+                                print(f"OK {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}) - already exists, skipping")
+                                continue
+                            print(f"Downloading {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}, size: {size:,} bytes)...")
+                            if self._download_s3_object('copernicus-dem-30m', key, output_path):
+                                print(f"  Successfully downloaded to: {output_path}")
+                            else:
+                                print("  Error downloading file")
+        return 0
 
 class Basin:
     """_summary_
