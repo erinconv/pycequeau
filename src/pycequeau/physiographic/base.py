@@ -222,30 +222,49 @@ class SetupProject:
         print(f"\n{'='*70}")
         print(f"Matched {len(matched_tiles)} tiles for your region:")
         print(f"{'='*70}")
-        # Make sure that the COP_DEM fodler exist inside the geographic folder
+        # Make sure that the COP_DEM folder exist inside the geographic folder
         cop_dem = os.path.join(self._project_path, "geographic", "COP_DEM")
         os.makedirs(cop_dem, exist_ok=True)
         if matched_tiles:
             for prefix, tile_lon, tile_lat in matched_tiles:
-                # Get the main DEM file from this tile folder
+                # Get the main DEM file and water body mask from this tile folder
                 # The main file is: prefix/Copernicus_DSM_COG_10_..._DEM.tif
-                # List files in this folder to find the main DEM
+                # Water body mask is: prefix/Copernicus_DSM_COG_10_..._WBM.tif
+                # List files in this folder to find the main DEM and water body mask
                 tile_objects = self._list_s3_objects('copernicus-dem-30m', prefix)
                 if tile_objects:
                     for key, size in tile_objects:
-                        # Look for the main DEM file (not aux files, not previews)
-                        if key.endswith('_DEM.tif') and 'AUXFILES' not in key and 'PREVIEW' not in key:
-                            filename = key.split('/')[-1]
+                        # Skip aux files and previews
+                        if 'PREVIEW' in key:
+                            continue
+                        
+                        filename = key.split('/')[-1]
+                        
+                        # Download DEM file
+                        if key.endswith('_DEM.tif'):
                             output_path = os.path.join(cop_dem, filename)
                             # Skip if file already exists
                             if os.path.exists(output_path):
                                 print(f"OK {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}) - already exists, skipping")
                                 continue
-                            print(f"Downloading {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}, size: {size:,} bytes)...")
+                            print(f"Downloading DEM: {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}, size: {size:,} bytes)...")
                             if self._download_s3_object('copernicus-dem-30m', key, output_path):
                                 print(f"  Successfully downloaded to: {output_path}")
                             else:
-                                print("  Error downloading file")
+                                print("  Error downloading DEM file")
+                        
+                        # Download water body mask file (common patterns: _WBM.tif, _WATER.tif, _WATER_BODY.tif)
+                        elif key.endswith('_WBM.tif') or key.endswith('_WATER.tif') or key.endswith('_WATER_BODY.tif'):
+                            output_path = os.path.join(cop_dem, filename)
+                            # Skip if file already exists
+                            if os.path.exists(output_path):
+                                print(f"OK WBM {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}) - already exists, skipping")
+                                continue
+                            print(f"Downloading Water Body Mask: {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}, size: {size:,} bytes)...")
+                            if self._download_s3_object('copernicus-dem-30m', key, output_path):
+                                print(f"  Successfully downloaded to: {output_path}")
+                            else:
+                                print("  Error downloading water body mask file")
         return 0
 
 class Basin:
