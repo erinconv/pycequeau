@@ -2,6 +2,8 @@ from __future__ import annotations
 import os
 import json
 import re
+import subprocess
+import sys
 import requests
 from urllib.parse import quote
 from math import ceil, floor
@@ -200,7 +202,7 @@ class SetupProject:
             print(f"Error downloading: {e}")
             return False
 
-    def _download_dem(self):
+    def _download_COP_files(self):
         """_summary_
 
         Returns:
@@ -223,8 +225,8 @@ class SetupProject:
         print(f"Matched {len(matched_tiles)} tiles for your region:")
         print(f"{'='*70}")
         # Make sure that the COP_DEM folder exist inside the geographic folder
-        cop_dem = os.path.join(self._project_path, "geographic", "COP_DEM")
-        os.makedirs(cop_dem, exist_ok=True)
+        cop_files = os.path.join(self._project_path, "geographic", "COP_files")
+        os.makedirs(cop_files, exist_ok=True)
         if matched_tiles:
             for prefix, tile_lon, tile_lat in matched_tiles:
                 # Get the main DEM file and water body mask from this tile folder
@@ -242,7 +244,7 @@ class SetupProject:
                         
                         # Download DEM file
                         if key.endswith('_DEM.tif'):
-                            output_path = os.path.join(cop_dem, filename)
+                            output_path = os.path.join(cop_files, filename)
                             # Skip if file already exists
                             if os.path.exists(output_path):
                                 print(f"OK {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}) - already exists, skipping")
@@ -255,7 +257,7 @@ class SetupProject:
                         
                         # Download water body mask file (common patterns: _WBM.tif, _WATER.tif, _WATER_BODY.tif)
                         elif key.endswith('_WBM.tif') or key.endswith('_WATER.tif') or key.endswith('_WATER_BODY.tif'):
-                            output_path = os.path.join(cop_dem, filename)
+                            output_path = os.path.join(cop_files, filename)
                             # Skip if file already exists
                             if os.path.exists(output_path):
                                 print(f"OK WBM {filename} (lon: {tile_lon:.2f}, lat: {tile_lat:.2f}) - already exists, skipping")
