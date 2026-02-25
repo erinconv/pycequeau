@@ -54,15 +54,6 @@ class CopernicusDEMProcessor:
         for path in files_to_clean:
             delete_raster_and_sidecars(path)
 
-    def run_basic_conditioning(self):
-        """_summary_
-
-        Returns:
-            _type_: _description_
-        """
-        self._basic_dem_condition()
-        return 0
-
     def _check_project_structure(self):
         """_summary_
 
@@ -402,18 +393,18 @@ class CopernicusDEMProcessor:
 
         return 0
 
-    def _basic_dem_condition(self):
+    @classmethod
+    def basic_dem_condition(cls, in_dem: str, in_wbm: str):
         """_summary_
 
         Returns:
             _type_: _description_
         """
-        in_dem = os.path.join(self._project_path, "geographic", "DEM.tif")
-        in_wbm = os.path.join(self._project_path, "geographic", "WBM.tif")
+        base_dir = os.path.dirname(in_dem)
         # Open rasters
         dem_raster = rxr.open_rasterio(in_dem, chunks="auto").squeeze()
         wbm_raster = rxr.open_rasterio(in_wbm, chunks="auto").squeeze()
-        
+
         # Get ocean pixels if they exist
         ocean_pixels = wbm_raster.where(wbm_raster == 1)
         # Set ocean pixels to no data in the DEM
@@ -425,22 +416,21 @@ class CopernicusDEMProcessor:
 
         # Compute distance allocation on the surface water body areas
         distance = xrs.proximity(boolean_surface_water, distance_metric='GREAT_CIRCLE')
-        # distance = distance.where(distance > 0, np.nan)
 
         # Reduce the proximity values by logartitmic transformation
-        distance = np.log(distance + 1)
+        distance = np.log(distance + 1)/10
 
         # Substract the distance from the DEM
         no_flat_dem = dem_raster - distance
-        no_flat_dem_path = os.path.join(self._project_path, "geographic", "DEM_no_flat.tif")
+        no_flat_dem_path = os.path.join(base_dir, "DEM_conditioned.tif")
 
         # distance = boolean_surface_water
         # save dataset as tif
         dem_crs = dem_raster.rio.crs
         dem_dtype = dem_raster.dtype
         # Replace the no data value in the DEM to -99999
-        dem_raster = dem_raster.where(np.isnan(dem_raster), -99999)
         dem_nd = -99999
+        dem_raster = dem_raster.where(np.isnan(dem_raster), dem_nd)
         no_flat_dem.rio.write_crs(dem_crs, inplace=True)
         no_flat_dem.rio.write_nodata(dem_nd, inplace=True)
         no_flat_dem.rio.to_raster(no_flat_dem_path, dtype=dem_dtype)
