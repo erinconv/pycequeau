@@ -29,6 +29,9 @@ dependencies = [
     "pytest",
     "autopep8",
     "ipykernel",
+    "rioxarray",
+    "dask",
+    "xarray-spatial",
 ]
 
 [project.urls]
@@ -41,6 +44,13 @@ dev = [
     "pytest",
     "autopep8",
     "ipykernel",
+    # Sphinx documentation
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-copybutton",
+    "nbsphinx",
+    "sphinx-autodoc-typehints",
+    "sphinx-mathjax-offline",
 ]
 
 [tool.flit.sdist]
