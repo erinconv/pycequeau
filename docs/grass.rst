@@ -88,6 +88,18 @@ Once imported, set the region by runnig the next command line:
   
   g.region -d raster=DEM
 
+Before computing flow direction and accumulation, it is necessary to remove spurious depressions (sinks) from the DEM. These sinks may prevent proper
+drainage routing and lead to incorrect watershed delineation.
+
+In GRASS-GIS, depression filling can be performed using the ``r.fill.dir`` module. This tool fills sinks in the DEM and produces a depressionless elevation raster.
+
+Run the following command:
+
+.. code-block:: bash
+
+  r.fill.dir --overwrite input=DEM output=FilledDEM direction=DIR_fill
+
+
 .. note::
 
     OPTIONAL: If we have an existent stream nerwork, we can burn this vector file to make our process even more exact by running the next command.
@@ -100,7 +112,8 @@ Once imported, set the region by runnig the next command line:
 
       r.carve -n --overwrite raster=DEM vector=streams output=BurnedDEM
 
-    Doing this step is highly recommended in basins where the surface is mostly flat and the flow direction must be corrected. If you do not have any reference stream network, we recommend download it form the following global dataset: https://www.hydrosheds.org/
+    Doing this step is highly recommended in basins where the surface is mostly flat and the flow direction must be corrected. If you do not have any 
+    reference stream network, we recommend download it from the following global dataset: https://www.hydrosheds.org/
 
 
 
@@ -115,7 +128,7 @@ Then, let's compute the the DIR file
 
 .. code-block:: bash
   
-  r.watershed --overwrite elevation=DEM drainage=DIR
+  r.watershed --overwrite elevation=FilledDEM drainage=DIR
 
 
 To process the corrected files, we need to install one grass extention. You can do so by running the next command into the console:
