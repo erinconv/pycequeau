@@ -1,0 +1,85 @@
+name: Release From pyproject.toml
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - pyproject.toml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Read version from pyproject.toml
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(python - <<'PY'
+          import tomllib
+          with open("pyproject.toml", "rb") as f:
+              data = tomllib.load(f)
+          print(data["project"]["version"])
+          PY
+          )
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Release version: ${VERSION}"
+
+      - name: Check whether tag already exists
+        id: tagcheck
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} does not exist yet."
+          fi
+
+      - name: Create and push tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package metadata
+        run: twine check dist/*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/*

@@ -1,6 +1,7 @@
 """Core module."""
 from __future__ import annotations
 
+from .cop_processor import CopernicusDEMProcessor
 from .utils import (
     polygonize_raster,
     fix_geometry,
@@ -14,6 +15,7 @@ from .utils import (
 )
 
 __all__ = [
+    "CopernicusDEMProcessor",
     "polygonize_raster",
     "fix_geometry", 
     "rasterize_shp",

@@ -1,24 +1,37 @@
-.. pycequeau documentation master file, created by
-   sphinx-quickstart on Wed Apr 19 00:25:47 2023.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Welcome to pycequeau
+====================
 
-Welcome to pycequeau's documentation!
-=====================================
+**pycequeau** is a Python library that prepares the inputs needed to build and run the **CEQUEAU** hydrological and water temperature model. It helps you obtain and process physiographic data, meteorological inputs, and parameters for your watershed.
+
 .. note::
 
-   This project is under active development.
+   This project is under active development. Feedback, suggestions, and contributions are welcome.
+
+What you can do
+---------------
+
+- **Physiographic data**: Extract or prepare basin geometry and terrain-derived inputs.
+- **Meteorological data**: Get and format weather inputs (e.g. from NetCDF).
+- **Parameters**: Generate or manage CEQUEAU model parameters structure.
+
+The library is designed to work with common geospatial formats and tools (e.g. QGIS, GRASS GIS, or other GIS software).
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Getting started:
+   :caption: Getting started
 
-   readme
+   Installation <readme>
+   cop_dem
+   condition_dem
    grass
+   flowlibs
 
 .. toctree::
    :maxdepth: 2
-   :caption: Usage of the toolbox:
+   :caption: Tutorials & examples
 
    notebooks/get_physio.ipynb
    notebooks/get_meteo.ipynb
@@ -26,13 +39,13 @@ Welcome to pycequeau's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference:
+   :caption: API Reference
 
    modules
 
-.. Indices and tables
-.. ==================
+Indices and tables
+==================
 
-.. * :ref:`genindex`
-.. * :ref:`modindex`
-.. * :ref:`search`
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
