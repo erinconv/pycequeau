@@ -418,7 +418,7 @@ class CopernicusDEMProcessor:
         distance = xrs.proximity(boolean_surface_water, distance_metric='GREAT_CIRCLE')
 
         # Reduce the proximity values by logartitmic transformation
-        distance = np.log(distance + 1)/10
+        distance = np.log(distance + 1)/10 - 2 #Add negative 2 to make sure water areas are lower than the surroundings.
 
         # Substract the distance from the DEM
         no_flat_dem = dem_raster - distance
