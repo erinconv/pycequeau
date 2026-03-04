@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "pycequeau"
-version = "0.0.3"
+version = "0.1.0"
 description = "A library that obtains the necessary files to build and run the CEQUEAU hydrological-water temperature model"
 authors = [{name = "Eisinhower Rincon", email = "eisinhower.rincon@inrs.ca"}]
 readme = {file = "README.rst", content-type = "text/x-rst"}
@@ -41,6 +41,7 @@ Documentation = "https://pycequeau.readthedocs.io/"
 
 [project.optional-dependencies]
 dev = [
+    "toml",
     "pytest",
     "autopep8",
     "ipykernel",
