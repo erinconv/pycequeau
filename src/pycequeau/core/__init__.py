@@ -13,6 +13,12 @@ from .utils import (
     rasterize_feature,
     get_index_list
 )
+from .matlab_utils import (
+    to_mat_compatible,
+    dataframe_to_struct_array,
+    mat_field_value,
+    mat_to_py,
+)
 
 __all__ = [
     "CopernicusDEMProcessor",
@@ -24,7 +30,11 @@ __all__ = [
     "GetExtent",
     "regrid_CE",
     "rasterize_feature",
-    "get_index_list"
+    "get_index_list",
+    "to_mat_compatible",
+    "dataframe_to_struct_array",
+    "mat_field_value",
+    "mat_to_py",
 ]
 
 # from . import missing

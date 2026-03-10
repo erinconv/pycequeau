@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import json
 from math import ceil, floor
 from osgeo import gdal, ogr
 import pandas as pd
@@ -9,10 +8,12 @@ import geopandas as gpd
 import rasterstats as rs
 import matplotlib.pyplot as plt
 import rasterio
+from scipy.io import loadmat, savemat
 from . import carreauxEntiers as CEs
 from . import carreauxPartiels as CPs
 from . import CPfishnet as CPfs
 from ..core import utils as u
+from ..core import matlab_utils as matu
 from ..core import projections as ceqproj
 # import sys
 # import rasterio
@@ -67,15 +68,24 @@ class Basin:
 
         # Check if the bassin versant object is an input file
         if len(args) == 1:
-            # Check if the provided file is an an actual json file
+            input_file = args[0]
+            ext = os.path.splitext(input_file)[1].lower()
             try:
-                # Open the json file file
-                f = open(args[0], "r", encoding='utf-8')
-                self.bassinVersant = json.loads(f.read())
-            # except ZeroDivisionError as e
-            except ValueError as exc:
+                if ext == ".json":
+                    # Backward-compatible loader for existing JSON structures.
+                    with open(input_file, "r", encoding="utf-8") as f:
+                        import json
+                        self.bassinVersant = json.loads(f.read())
+                elif ext == ".mat":
+                    mat_data = loadmat(input_file, struct_as_record=False, squeeze_me=True)
+                    if "bassinVersant" not in mat_data:
+                        raise ValueError("MAT file does not contain 'bassinVersant' variable")
+                    self.bassinVersant = matu.mat_to_py(mat_data["bassinVersant"])
+                else:
+                    raise ValueError("Input structure must be .json or .mat")
+            except (OSError, ValueError) as exc:
                 raise ValueError(
-                    "Provided file for bassinVerssant structure is not a json file") from exc
+                    "Provided structure file is invalid (expected .json or .mat)") from exc
         # else:
         #     # Polygonize and process the raster watershed and subbasins file
         #     self.rasterize_maps()
@@ -727,11 +737,9 @@ class Basin:
                                                        self.CEfishnet["Canopy"].values
                                                        ]
                                             )
-        # Change the values that must be integer types
-        self.carreauxEntiers["CEid"] = self.carreauxEntiers["CEid"].astype(
-            "uint16")
-        self.carreauxEntiers["i"] = self.carreauxEntiers["i"].astype("uint8")
-        self.carreauxEntiers["j"] = self.carreauxEntiers["j"].astype("uint8")
+        # CEQUEAU MEX reads numeric fields through mxGetPr (double*), so keep
+        # all CE numeric values as float64 in the exported structure.
+        self.carreauxEntiers = self.carreauxEntiers.astype(np.float64)
         self.CEfishnet.to_file(self._CEfishnet)
         self.carreauxEntiers.to_csv(os.path.join(
             self._project_path, "results", "carreauxEntiers.csv"))
@@ -786,7 +794,7 @@ class Basin:
                                                       "penteRiviere", "cumulPctSuperficieCPAmont", "cumulPctSuperficieLacsAmont",
                                                       "cumulPctSuperficieMaraisAmont", "cumulPctSuperficieForetAmont",
                                                       "cumulArea", "pctImpermeable","azimutCoursEau",
-                                                      "Longitude", "Latitude","meanCanopy"],
+                                                      "Longitude", "Latitude", "lon", "lat", "meanCanopy"],
                                              index=coordinates.index,
                                              data=np.c_[coordinates["CPid"].values,
                                                         coordinates["i"].values,
@@ -814,23 +822,19 @@ class Basin:
                                                         azimuth["azimutCoursEau"].values,
                                                         latlon_array[:, 0],
                                                         latlon_array[:, 1],
+                                                        latlon_array[:, 0],
+                                                        latlon_array[:, 1],
                                                         self.CPfishnet["Canopy"].values
                                                         ])
-        # Change the values that must be integer types
-        self.carreauxPartiels["idCE"] = np.array(
-            self.carreauxPartiels["idCE"], dtype=np.int16)
-        self.carreauxPartiels["CPid"] = np.array(
-            self.carreauxPartiels["CPid"], dtype=np.int16)
-        self.carreauxPartiels["idCPAval"] = np.array(
-            self.carreauxPartiels["idCPAval"], dtype=np.int16)
-        self.carreauxPartiels["i"] = np.array(
-            self.carreauxPartiels["i"], dtype=np.int8)
-        self.carreauxPartiels["j"] = np.array(
-            self.carreauxPartiels["j"], dtype=np.int8)
-        self.carreauxPartiels["code"] = np.array(
-            self.carreauxPartiels["code"], dtype=np.int8)
-        self.carreauxPartiels["penteRiviere"] = np.array(
-            self.carreauxPartiels["penteRiviere"], dtype=np.float32)
+        # Keep idCPsAmont as a fixed-size float array (1x5) for each CP.
+        self.carreauxPartiels["idCPsAmont"] = self.carreauxPartiels["idCPsAmont"].apply(
+            lambda arr: np.asarray(arr, dtype=np.float64)
+        )
+
+        # CEQUEAU MEX reads numeric fields through mxGetPr (double*), so keep
+        # scalar numeric CP columns as float64.
+        cp_num_cols = [c for c in self.carreauxPartiels.columns if c != "idCPsAmont"]
+        self.carreauxPartiels[cp_num_cols] = self.carreauxPartiels[cp_num_cols].astype(np.float64)
 
         self.carreauxPartiels.to_csv(os.path.join(
             self._project_path, "results", "carreauxPartiels.csv"))
@@ -839,39 +843,39 @@ class Basin:
     def create_bassinVersant_structure(self):
         """_summary_
         """
-        # This structure will be stored as json format. This json format
-        # will be easily translatet into .mat file for being read by Matlab
-        # and also, will serve as one of the main input files in the OpenCEQUEAU
-        # system.
+        # This structure is exported directly as .mat so MATLAB/Octave can load
+        # it without JSON dependencies.
         # *Temporary lines to read the csv files.
         # self.carreauxEntiers = pd.read_csv("carreauxEntiers.csv",index_col=0)
         # self.carreauxPartiels = pd.read_csv("carreauxPartiels.csv",index_col=0)
-        # Get the column names from the carreux partiels and entiers structures
-        columns_CE = self.carreauxEntiers.columns.tolist()
-        columns_CP = self.carreauxPartiels.columns.tolist()
         # Create the dictionary structure
         self.bassinVersant = {
             "nbCpCheminLong": [],
             "superficieCE": [],
-            "barrage": {},
+            "barrage": [],
             "nomBassinVersant": '',
             "carreauxEntiers": {},
-            "carreauxPartiels": {}
+            "carreauxPartiels": {},
         }
-        # Send the carreuxEntiers values
-        for CE_name in columns_CE:
-            self.bassinVersant["carreauxEntiers"].update(
-                {CE_name: self.carreauxEntiers[CE_name].values.tolist()})
-        # Send the carreuxPartiels values
-        for CP_name in columns_CP:
-            self.bassinVersant["carreauxPartiels"].update(
-                {CP_name: self.carreauxPartiels[CP_name].values.tolist()})
-        self.bassinVersant["superficieCE"] = self._dx*self._dy*1.0e-6
+        # Export CE/CP as MATLAB struct arrays (one row = one struct) to
+        # match existing InputStruct.mat layout used by CEQUEAU wrappers.
+        self.bassinVersant["carreauxEntiers"] = matu.dataframe_to_struct_array(
+            self.carreauxEntiers
+        )
+        self.bassinVersant["carreauxPartiels"] = matu.dataframe_to_struct_array(
+            self.carreauxPartiels
+        )
+        self.bassinVersant["superficieCE"] = float(self._dx*self._dy*1.0e-6)
         self.bassinVersant["nomBassinVersant"] = self.name
-        self.bassinVersant["nbCpCheminLong"] = self.outlet_routes.shape[1]
-        # Save the files in the results folder
-        with open(os.path.join(self._project_path, "results", "bassinVersant.json"), "w") as outfile:
-            json.dump(self.bassinVersant, outfile, indent=4)
+        self.bassinVersant["nbCpCheminLong"] = float(self.outlet_routes.shape[1])
+        # Save the structure as MATLAB file in the results folder.
+        out_mat = os.path.join(self._project_path, "results", "bassinVersant.mat")
+        savemat(
+            out_mat,
+            {"bassinVersant": matu.to_mat_compatible(self.bassinVersant)},
+            long_field_names=True,
+            do_compression=True,
+        )
 
     def plot_routing(self, area_th=0.01):
         """_summary_
