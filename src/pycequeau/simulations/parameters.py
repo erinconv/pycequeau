@@ -7,8 +7,10 @@ import geopandas as gpd
 import xarray as xr
 import pandas as pd
 from shapely.geometry import Point, LineString
+from scipy.io import savemat
 from ..physiographic.base import Basin
 from ..core import projections
+from ..core import matlab_utils as matu
 # import shapely.geometry
 
 
@@ -22,9 +24,9 @@ class Parameters:
         Args:
             bassinVersant (Basin): _description_
         """
-        self.ctp = {0}
-        self.lac = 0
-        self.surface = 0
+        self.ctp = 0.0
+        self.lac = 0.0
+        self.surface = 0.0
         self.basin_structure = bassinVersant
         self.parametres = None
         self.option = None
@@ -80,11 +82,30 @@ class Parameters:
                            "evapo": self.evapo,
                            "qualite": self.qualite,
                            "dli": self.dli}
+        # CEQUEAU MEX reads numeric fields through mxGetPr (double*), so we
+        # normalize all numeric values to float before export.
+        self.parametres = self._normalize_numeric_for_mex(self.parametres)
         with open(os.path.join(self.basin_structure.project_path,
                                "results", "parameters.json"), "w",
                   encoding="utf-8") as outfile:
             json.dump(self.parametres, outfile, indent=4, default=tuple)
         outfile.close()
+        # Export MATLAB-compatible parameter structure as well.
+        self.export_parameter_structure_mat()
+
+    def export_parameter_structure_mat(self, file_name: str = "parameters.mat"):
+        """Export current parameter dictionary to MATLAB/Octave .mat format."""
+        if self.parametres is None:
+            raise ValueError(
+                "Parameter structure not built yet. Call create_parameter_structure() first."
+            )
+        out_mat = os.path.join(self.basin_structure.project_path, "results", file_name)
+        savemat(
+            out_mat,
+            {"parametres": matu.to_mat_compatible(self.parametres)},
+            long_field_names=True,
+            do_compression=True,
+        )
 
     def set_option(self, values: np.ndarray):
         """_summary_
@@ -93,14 +114,14 @@ class Parameters:
             values (np.ndarray): _description_
         """
         # The default values can be changed using the method set_maximum_insolation_day
-        self.option = {"ipassim": 24,
-                       "moduleFonte": values[0],
-                       "moduleEvapo": values[1],
-                       "moduleOmbrage": 0,
-                       "moduleDLI": 1,
-                       "calculQualite": values[2],
-                       "jonei": self._jonei,
-                       "joeva": self._jonei}
+        self.option = {"ipassim": float(24),
+                       "moduleFonte": float(values[0]),
+                       "moduleEvapo": float(values[1]),
+                       "moduleOmbrage": float(0),
+                       "moduleDLI": float(1),
+                       "calculQualite": float(values[2]),
+                       "jonei": float(self._jonei),
+                       "joeva": float(self._jonei)}
 
     def set_sol(self, values: np.ndarray):
         """_summary_
@@ -128,8 +149,8 @@ class Parameters:
                     "hpot_s": values[11],
                     "hsol_s": values[12],
                     "hrimp_s": values[13],
-                    "tri_s": 0,
-                    "xla": self._compute_xla(),
+                    "tri_s": 0.0,
+                    "xla": float(self._compute_xla()),
                     }
 
     def _compute_xla(self) -> int:
@@ -185,6 +206,27 @@ class Parameters:
         self.transfert = {"exxkt": values[0],
                           "zn": self.compute_tc(),
                           "tc_struct": self.time_of_concentrations}
+
+    def _normalize_numeric_for_mex(self, obj):
+        """Recursively convert integer-like numerics to float for MAT export."""
+        if isinstance(obj, dict):
+            return {k: self._normalize_numeric_for_mex(v) for k, v in obj.items()}
+
+        if isinstance(obj, (list, tuple)):
+            converted = [self._normalize_numeric_for_mex(v) for v in obj]
+            if len(converted) > 0 and all(isinstance(v, (int, float, np.integer, np.floating, bool, np.bool_)) for v in converted):
+                return np.asarray(converted, dtype=np.float64)
+            return converted
+
+        if isinstance(obj, np.ndarray):
+            if np.issubdtype(obj.dtype, np.number):
+                return obj.astype(np.float64)
+            return obj
+
+        if isinstance(obj, (np.integer, np.floating, int, float, bool, np.bool_)):
+            return float(obj)
+
+        return obj
 
     def compute_tc(self):
         r"""
