@@ -35,15 +35,17 @@ def create_grid_var(ds: xr.Dataset,
             "pasTemp": datenum
         }
     )
-    # Set indexes as integers
+    # Set i, j columns as integers so they can be used for array indexing
     CEs_df["j"] = CEs_df["j"].values.astype("int")
     CEs_df["i"] = CEs_df["i"].values.astype("int")
     # Filling up the CEQUEAU grid file
     for idx, ce_id in CEs_df.iterrows():
-        # Get the row, col indexes
+        # Ensure the CE column index is a plain Python int
+        col_idx = int(idx) - 1
+        # Get the row, col indexes as integers
         i = int(ce_id["i"])
         j = int(ce_id["j"])
-        dr[var_name][:, idx-1] = ds[var_name].loc[:,j,i].values.astype(np.float32)
+        dr[var_name][:, col_idx] = ds[var_name].loc[:, j, i].values.astype(np.float32)
     return dr
 
 
