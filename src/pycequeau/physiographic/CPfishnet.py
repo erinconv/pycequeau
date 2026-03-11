@@ -354,7 +354,18 @@ def dissolve_pixels(CE_fishnet: gpd.GeoDataFrame,
             if CP["Dissolve"]:
                 # Get the neighbors and the condition
                 neighbors = CE_features.loc[i, "NEIGHBORS"]
-                idx_max_area = CE_features.loc[neighbors, "maxFAC"].idxmax()
+                assert neighbors, (
+                    f"CP dissolve failed: CPid={CP['CPid']} in CEid={CE['CEid']} has no neighbors. "
+                    "Suggested fix: rerun with a coarser GRID_DIMENSION. "
+                    "If the issue persists, report this dataset/dimension to the library maintainers."
+                )
+                candidates = CE_features.loc[neighbors, "maxFAC"]
+                assert (not candidates.empty) and candidates.notna().any(), (
+                    f"CP dissolve failed: CPid={CP['CPid']} in CEid={CE['CEid']} has no valid maxFAC "
+                    "among neighbors. Suggested fix: rerun with a coarser GRID_DIMENSION. "
+                    "If the issue persists, report this dataset/dimension to the library maintainers."
+                )
+                idx_max_area = candidates.idxmax()
                 CP_fishnet.loc[CP["CPid"], "CPid"] = idx_max_area
                 tracked_cps.append(CP["CPid"])
             continue
@@ -949,6 +960,11 @@ def get_downstream_CP(rtable: pd.DataFrame) -> pd.DataFrame:
     # Get the lenght of each list to get the maximum value
     lists_len = [len(i)
                  for i in rtable["upstreamCPs"].values if isinstance(i, list)]
+    assert lists_len, (
+        "Downstream routing failed: no upstreamCPs were identified in rtable. "
+        "Suggested fix: rerun with a coarser GRID_DIMENSION. "
+        "If the issue persists, report this dataset/dimension to the library maintainers."
+    )
     # Create a zero array to store the values
     list_upstream_array = np.zeros(
         [len(rtable), max(lists_len)]).astype("uint16")
