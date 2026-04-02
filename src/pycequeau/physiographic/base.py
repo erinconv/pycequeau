@@ -175,8 +175,8 @@ class Basin:
         """_summary_
         """
         # Polygonize both raster
-        u.polygonize_raster(self._Basin)
-        u.polygonize_raster(self._SubBasins)
+        no_data_basin = u.polygonize_raster(self._Basin)
+        no_data_subbasin = u.polygonize_raster(self._SubBasins)
         self._Basin = self._Basin.replace(".tif", ".shp")
         self._SubBasins = self._SubBasins.replace(".tif", ".shp")
         # Open shps as geopandas datasets
@@ -186,8 +186,8 @@ class Basin:
         watershed = u.fix_geometry(watershed)
         sub_basins = u.fix_geometry(sub_basins)
         # Drop non desired values
-        watershed = watershed.where(watershed["raster_val"] != 255)
-        sub_basins = sub_basins.where(sub_basins["raster_val"] != 255)
+        watershed = watershed.where(watershed["raster_val"] != no_data_basin)
+        sub_basins = sub_basins.where(sub_basins["raster_val"] != no_data_subbasin)
         watershed["area"] = watershed.area
         # Select the maximum value
         watershed = watershed.where(

@@ -56,11 +56,14 @@ def polygonize_raster(raster_name: str):
 
     Args:
         raster_name (str): _description_
+    Returns:
+        _type_: NoData value from the input raster first band.
     """
     # Open the file
     src_ds = gdal.Open(raster_name)
     # Define shp file attributes
     srcband = src_ds.GetRasterBand(1)
+    nodata_value = srcband.GetNoDataValue()
     dst_layername = 'polygonized'
     drv = ogr.GetDriverByName("ESRI Shapefile")
     # Set the export name
@@ -75,6 +78,7 @@ def polygonize_raster(raster_name: str):
     dst_layer.CreateField(fld)
     dst_field = dst_layer.GetLayerDefn().GetFieldIndex("raster_val")
     gdal.Polygonize(srcband, None, dst_layer, dst_field, [], callback=None)
+    return nodata_value
 
 
 def fix_geometry(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
