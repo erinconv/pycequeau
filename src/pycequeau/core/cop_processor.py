@@ -405,28 +405,34 @@ class CopernicusDEMProcessor:
         dem_raster = rxr.open_rasterio(in_dem, chunks="auto").squeeze()
         wbm_raster = rxr.open_rasterio(in_wbm, chunks="auto").squeeze()
 
-        # Get ocean pixels if they exist
-        ocean_pixels = wbm_raster.where(wbm_raster == 1)
-        # Set ocean pixels to no data in the DEM
-        dem_raster = dem_raster.where(ocean_pixels.isnull(), np.nan)
+        # Treat WBM ocean pixels and WBM no-data as no-data in the DEM.
+        wbm_nodata = wbm_raster.rio.nodata
+        ocean_or_nodata = (wbm_raster == 1) | wbm_raster.isnull()
+        if wbm_nodata is not None and not np.isnan(wbm_nodata):
+            ocean_or_nodata = ocean_or_nodata | (wbm_raster == wbm_nodata)
+        dem_raster = dem_raster.where(~ocean_or_nodata, np.nan)
 
         # Now compute the surface water body areas as boolean mask
         boolean_surface_water = xr.where(wbm_raster > 1,1,np.nan)
         boolean_surface_water = xr.where(np.isnan(boolean_surface_water),1,0)
 
+        dem_crs = dem_raster.rio.crs
+        if dem_crs is None:
+            raise ValueError("Input DEM has no CRS. Cannot choose distance metric.")
+        distance_metric = "GREAT_CIRCLE" if dem_crs.is_geographic else "EUCLIDEAN"
+
         # Compute distance allocation on the surface water body areas
-        distance = xrs.proximity(boolean_surface_water, distance_metric='GREAT_CIRCLE')
+        distance = xrs.proximity(boolean_surface_water, distance_metric=distance_metric)
 
         # Reduce the proximity values by logartitmic transformation
         distance = np.log(distance + 1)/10 - 2 #Add negative 2 to make sure water areas are lower than the surroundings.
 
         # Substract the distance from the DEM
-        no_flat_dem = dem_raster - distance
+        no_flat_dem = dem_raster - distance + 1000
         no_flat_dem_path = os.path.join(base_dir, "DEM_conditioned.tif")
 
         # distance = boolean_surface_water
         # save dataset as tif
-        dem_crs = dem_raster.rio.crs
         dem_dtype = dem_raster.dtype
         # Replace the no data value in the DEM to -99999
         dem_nd = -99999
