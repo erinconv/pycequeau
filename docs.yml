@@ -3,23 +3,30 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.8
-  - gdal=3.0.2
-  - pyproj
-  - xarray
-  - pytest
-  - scipy
-  - autopep8
-  - matplotlib
-  - ipykernel
-  - geopandas
-  - rasterstats
-  - netcdf4
-  - shapely >= 2.0
-  #Development and documentations dependencies
+  - python=3.10
+  - pip
+  - gdal=3.11.0
+  - proj=9.6.2
   - nbconvert
   - nbsphinx
   - sphinx
-  - sphinx-rtd-theme >=1.0
+  - sphinx-rtd-theme>=3.1.0
   - nbsphinx-link
   - sphinx-copybutton
+  - pip:
+      - autopep8==2.3.2
+      - cftime==1.6.5
+      - geopandas==1.1.2
+      - ipykernel==7.2.0
+      - matplotlib==3.10.8
+      - netcdf4==1.7.4
+      - pyproj==3.7.1
+      - pytest==9.0.2
+      - rasterio==1.4.4
+      - rasterstats==0.20.0
+      - requests==2.32.5
+      - rioxarray==0.19.0
+      - scipy==1.15.3
+      - shapely==2.1.2
+      - xarray==2025.6.1
+      - xarray-spatial==0.5.2

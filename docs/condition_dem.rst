@@ -27,7 +27,7 @@ with each other. To perform it with the maps we downlaoded in :doc:`the previous
     wbm_path = "path/to/your/wbm.tif"
     cop_dem = CopernicusDEMProcessor.basic_dem_condition(dem_path, wbm_path)
 
-As a result of this, you wull obtain a raster called `DEM_condidioned.tif` which is the one you can use as input fro the
+As a result of this, you wull obtain a raster called ``DEM_condidioned.tif`` which is the one you can use as input fro the
 :doc:`GRASS tools <grass>` that were previously presented in the documentation.
 
 Handling Depressions (Sinks) in DEM Conditioning
@@ -57,3 +57,16 @@ Instead of raising the elevation within the sink, the carving process lowers sel
 This approach better preserves realistic terrain gradients and avoids the creation of artificial flat areas.
 Carving is particularly appropriate when sinks in the DEM result from noise or production errors rather than representing natural landscape features.
 Nonetheless, carving may not be the most appropriate method in landscapes where depressions correspond to real hydrological features (e.g., endorheic basins).
+
+
+Integration with the Pycequeau workflow
+---------------------------------------
+
+The Copernicus DEM products used in this workflow are distributed in a geographic coordinate reference system. After applying the basic conditioning step, 
+the resulting raster must be reprojected to a projected CRS before it can be used in Pycequeau.
+This requirement is important because several downstream preprocessing operations in Pycequeau assume planar coordinates and linear units. 
+In particular, grid dimensions, flow-path lengths, polygon areas, and proximity-based calculations are expected to be expressed in projected units rather than angular coordinates. 
+Using a DEM in geographic coordinates would therefore lead to inconsistent spatial measurements and unreliable hydrological outputs.
+
+For this reason, the conditioned DEM should be reprojected with GIS software such as QGIS or ArcGIS before continuing with the Pycequeau workflow. 
+The selected projected CRS should be appropriate for the study area and should be consistent with the other rasters.
