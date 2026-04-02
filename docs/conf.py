@@ -7,6 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 import sys
+sys.path.insert(0, os.path.abspath('../src'))
 sys.path.insert(0, os.path.abspath('..'))
 
 
@@ -28,6 +29,34 @@ extensions = [
 ]
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+# Read the Docs does not provide the full native GIS stack used by pycequeau.
+# Mock these imports so autodoc can still import modules and render the API
+# reference instead of generating empty pages.
+autodoc_mock_imports = [
+    "cftime",
+    "geopandas",
+    "matplotlib",
+    "matplotlib.pyplot",
+    "netCDF4",
+    "ogr",
+    "osgeo",
+    "osr",
+    "pandas",
+    "pyproj",
+    "rasterio",
+    "rasterstats",
+    "requests",
+    "rioxarray",
+    "scipy",
+    "scipy.io",
+    "scipy.io.matlab",
+    "shapely",
+    "shapely.geometry",
+    "shapely.validation",
+    "xarray",
+    "xrspatial",
+]
 
 
 # -- Options for HTML output -------------------------------------------------
