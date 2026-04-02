@@ -100,11 +100,13 @@ def get_river_geometry(CPfishnet: gpd.GeoDataFrame,
 
 def create_cequeau_stream_network(project_path: str,
                                   CP_fishnet: gpd.GeoDataFrame,
-                                  rtable: pd.DataFrame, 
+                                  rtable: pd.DataFrame,
+                                  fac_path: str,
                                   area_th=0.01) -> gpd.GeoDataFrame:
     """_summary_
 
     Args:
+        fac_path: Absolute path to the flow accumulation raster (same as Basin._FAC).
         area_th (float, optional): _description_. Defaults to 0.01.
 
     Returns:
@@ -134,7 +136,7 @@ def create_cequeau_stream_network(project_path: str,
                            index=CP_fishnet.index)
     df_line["cumulArea"] = CP_fishnet["cumulArea"].values
     # Save the outlet point of the river
-    x_outlet, y_outlet = save_outlet_point(project_path, CP_fishnet)
+    x_outlet, y_outlet = save_outlet_point(project_path, CP_fishnet, fac_path)
     # Start creating the stream files
     for i, _ in CP_fishnet.iterrows():
         # cp_aval = carreaux_partiels.loc[i, "idCPAval"]
@@ -202,11 +204,10 @@ def create_cequeau_stream_network(project_path: str,
     return gpdf_line
 
 
-def save_outlet_point(project_path: str, CP_fishnet: gpd.GeoDataFrame) -> tuple:
-    FAC_path = os.path.join(project_path,
-                            "geographic",
-                            "FAC.tif")
-    x_outlet, y_outlet = u.get_outlet_point(FAC_path)
+def save_outlet_point(project_path: str,
+                      CP_fishnet: gpd.GeoDataFrame,
+                      fac_path: str) -> tuple:
+    x_outlet, y_outlet = u.get_outlet_point(fac_path)
     point_geom = np.array([Point(x_outlet, y_outlet)], dtype=Point)
     outet_df = pd.DataFrame(data=np.array([[x_outlet, y_outlet]]),
                             columns=["x", "y"])

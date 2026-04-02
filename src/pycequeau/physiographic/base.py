@@ -175,8 +175,8 @@ class Basin:
         """_summary_
         """
         # Polygonize both raster
-        u.polygonize_raster(self._Basin)
-        u.polygonize_raster(self._SubBasins)
+        no_data_basin = u.polygonize_raster(self._Basin)
+        no_data_subbasin = u.polygonize_raster(self._SubBasins)
         self._Basin = self._Basin.replace(".tif", ".shp")
         self._SubBasins = self._SubBasins.replace(".tif", ".shp")
         # Open shps as geopandas datasets
@@ -186,8 +186,8 @@ class Basin:
         watershed = u.fix_geometry(watershed)
         sub_basins = u.fix_geometry(sub_basins)
         # Drop non desired values
-        watershed = watershed.where(watershed["raster_val"] != 255)
-        sub_basins = sub_basins.where(sub_basins["raster_val"] != 255)
+        watershed = watershed.where(watershed["raster_val"] != no_data_basin)
+        sub_basins = sub_basins.where(sub_basins["raster_val"] != no_data_subbasin)
         watershed["area"] = watershed.area
         # Select the maximum value
         watershed = watershed.where(
@@ -776,7 +776,8 @@ class Basin:
         # Get river geometry
         geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
         # Generate the stream network shp file and retrieve the river characteristics
-        azimuth = CPs.create_cequeau_stream_network(self.project_path, self.CPfishnet, self.rtable, 0)
+        azimuth = CPs.create_cequeau_stream_network(
+            self.project_path, self.CPfishnet, self.rtable, self._FAC, area_th=0)
         # Get the latituted and longitude centroids for each one of the CPs
         latlon_array = CPs.get_lat_lon_CP(self._CPfishnet)
         self.CPfishnet = self.CPfishnet.reindex(
