@@ -1,6 +1,6 @@
 from __future__ import annotations
 
 from .base import Meteo
-from .meteo_netcdf import StationNetCDF
+from .meteo_netcdf import NetCDFGridConfig, StationNetCDF
 
-__all__ = ["Meteo", "StationNetCDF"]
+__all__ = ["Meteo", "NetCDFGridConfig", "StationNetCDF"]
