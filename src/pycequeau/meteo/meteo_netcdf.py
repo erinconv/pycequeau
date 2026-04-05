@@ -10,9 +10,11 @@ import xarray as xr
 from osgeo import gdal, ogr
 from shapely.geometry import Point
 
-from ..core import manage_files, projections, utils as u
+from ..core import projections, utils as u
+from ..core.netcdf import fix_calendar
 from ..physiographic.base import Basin
 from .base import Meteo
+from .schema import DEFAULT_METEO_SCHEMA, MeteoSchema
 
 __methods__ = [
     "linear",
@@ -30,7 +32,7 @@ class NetCDFGridConfig:
     ce_index_offset: int = 10
 
 
-class StationNetCDF(Meteo):
+class NetCDFMeteo(Meteo):
     """Meteorological workflow for gridded NetCDF datasets."""
 
     def __init__(
@@ -38,10 +40,13 @@ class StationNetCDF(Meteo):
         basin_struct: Basin,
         ds: xr.Dataset,
         config: NetCDFGridConfig | None = None,
+        schema: MeteoSchema | None = None,
     ) -> None:
-        super().__init__(basin_struct)
         self.config = config or NetCDFGridConfig()
-        self.ds = _standardize_dataset(ds, self.config)
+        self.schema = schema or DEFAULT_METEO_SCHEMA
+        prepared_ds = self.prepare_dataset(ds, export_names=True)
+        prepared_ds = _standardize_dataset(prepared_ds, self.config)
+        super().__init__(basin_struct, prepared_ds, schema=self.schema)
         self.table: pd.DataFrame | None = None
         self.lon_utm: np.ndarray | None = None
         self.lat_utm: np.ndarray | None = None
@@ -56,40 +61,82 @@ class StationNetCDF(Meteo):
         basin_struct: Basin,
         ds: xr.Dataset,
         config: NetCDFGridConfig | None = None,
-    ) -> "StationNetCDF":
-        return cls(basin_struct, ds, config=config)
+        schema: MeteoSchema | None = None,
+    ) -> "NetCDFMeteo":
+        return cls(basin_struct, ds, config=config, schema=schema)
 
     @classmethod
-    def from_netcdf_folder(
+    def from_folder(
         cls,
         basin_struct: Basin,
         vars_path: str,
-        source: str = "ERA",
         config: NetCDFGridConfig | None = None,
-    ) -> "StationNetCDF":
-        source_name = source.upper()
-        vars_dict = manage_files.dict_netCDF(vars_path)
-        if source_name == "ERA":
-            ds = manage_files.get_ERA_Dataset(vars_dict)
-        elif source_name == "CORDEX":
-            ds = manage_files.get_CORDEX_Dataset(vars_dict)
-        else:
-            raise ValueError(
-                f"Unsupported NetCDF source '{source}'. Expected 'ERA' or 'CORDEX'."
+        schema: MeteoSchema | None = None,
+    ) -> "NetCDFMeteo":
+        meteo_schema = schema or DEFAULT_METEO_SCHEMA
+        ds = cls.load_folder_dataset(vars_path, schema=meteo_schema, export_names=True)
+        return cls(basin_struct, ds, config=config, schema=meteo_schema)
+
+    @classmethod
+    def prepare_dataset(
+        cls,
+        ds: xr.Dataset,
+        *,
+        schema: MeteoSchema | None = None,
+        file_label: str | None = None,
+        export_names: bool = False,
+    ) -> xr.Dataset:
+        meteo_schema = schema or DEFAULT_METEO_SCHEMA
+        ds = _standardize_input_dataset(ds)
+
+        prepared_vars: dict[str, xr.DataArray] = {}
+        for variable_name in ds.data_vars:
+            spec = meteo_schema.get_variable_spec(variable_name)
+            converted = _convert_dataarray_to_canonical_units(ds[variable_name], spec)
+            canonical_name = spec.canonical_name
+            if canonical_name in prepared_vars:
+                raise ValueError(
+                    f"Dataset contains duplicate variables that normalize to '{canonical_name}'."
+                )
+            prepared_vars[canonical_name] = converted.rename(canonical_name)
+
+        prepared = xr.Dataset(prepared_vars, coords=ds.coords, attrs=dict(ds.attrs))
+        _validate_daily_time_axis(prepared, file_label=file_label)
+        if export_names:
+            prepared = _export_to_cequeau_names(prepared, meteo_schema)
+        return prepared
+
+    @classmethod
+    def load_folder_dataset(
+        cls,
+        vars_path: str,
+        *,
+        schema: MeteoSchema | None = None,
+        export_names: bool = True,
+    ) -> xr.Dataset:
+        meteo_schema = schema or DEFAULT_METEO_SCHEMA
+        datasets: list[xr.Dataset] = []
+        for file_name in sorted(os.listdir(vars_path)):
+            if not file_name.endswith(".nc"):
+                continue
+            file_path = os.path.join(vars_path, file_name)
+            ds = xr.open_dataset(file_path, engine="netcdf4")
+            prepared = cls.prepare_dataset(
+                ds,
+                schema=meteo_schema,
+                file_label=file_name,
+                export_names=False,
             )
-        return cls(basin_struct, ds, config=config)
+            datasets.append(prepared)
 
-    @classmethod
-    def charge_ERA_Meteo(cls, bassinVersant: Basin, vars_path: str) -> "StationNetCDF":
-        """Backward-compatible constructor for ERA datasets."""
-        return cls.from_netcdf_folder(bassinVersant, vars_path, source="ERA")
+        if not datasets:
+            raise ValueError(f"No NetCDF files were found in '{vars_path}'.")
 
-    @classmethod
-    def charge_CORDEX_Meteo(
-        cls, bassinVersant: Basin, vars_path: str
-    ) -> "StationNetCDF":
-        """Backward-compatible constructor for CORDEX datasets."""
-        return cls.from_netcdf_folder(bassinVersant, vars_path, source="CORDEX")
+        _validate_aligned_time_axes(datasets)
+        merged = xr.merge(datasets, join="exact", compat="override")
+        if export_names:
+            merged = _export_to_cequeau_names(merged, meteo_schema)
+        return merged
 
     def stations_table(
         self,
@@ -171,6 +218,216 @@ class StationNetCDF(Meteo):
             file_name,
         )
         gdf.to_file(output_path)
+
+def _standardize_input_dataset(ds: xr.Dataset) -> xr.Dataset:
+    rename_map: dict[str, str] = {}
+    if "longitude" in ds.coords and "lon" not in ds.coords:
+        rename_map["longitude"] = "lon"
+    if "latitude" in ds.coords and "lat" not in ds.coords:
+        rename_map["latitude"] = "lat"
+    if "valid_time" in ds.dims and "time" not in ds.dims:
+        rename_map["valid_time"] = "time"
+    elif "valid_time" in ds.coords and "time" not in ds.coords and ds["valid_time"].ndim == 1:
+        time_dim = ds["valid_time"].dims[0]
+        if time_dim == "time":
+            ds = ds.assign_coords(time=ds["valid_time"])
+            ds = ds.drop_vars("valid_time")
+        else:
+            ds = ds.swap_dims({time_dim: "valid_time"})
+            rename_map["valid_time"] = "time"
+
+    if rename_map:
+        ds = ds.rename(rename_map)
+
+    required_coords = {"time", "lat", "lon"}
+    missing = required_coords.difference(ds.coords)
+    if missing:
+        missing_names = ", ".join(sorted(missing))
+        raise ValueError(f"Missing NetCDF coordinates: {missing_names}")
+
+    if "time" in ds.coords and hasattr(ds["time"], "dt"):
+        if not np.issubdtype(ds["time"].dtype, np.datetime64):
+            calendar = getattr(ds["time"].dt, "calendar", "gregorian")
+            if calendar != "gregorian":
+                ds = fix_calendar(ds)
+
+    ds = ds.sortby("time")
+    ds = ds.sortby("lat")
+    ds = ds.sortby("lon")
+
+    if not np.issubdtype(ds["time"].dtype, np.datetime64):
+        ds["time"] = xr.DataArray(ds.indexes["time"].to_datetimeindex(), dims=("time",))
+
+    return ds
+
+
+def _normalize_unit_text(unit: str) -> str:
+    unit = unit.strip()
+    unit = unit.replace("**", "^")
+    unit = unit.replace("day-1", "d-1")
+    unit = unit.replace("/day", " d-1")
+    unit = unit.replace("/d", " d-1")
+    unit = unit.replace("degc", "c")
+    unit = unit.replace("(", "").replace(")", "")
+    unit = " ".join(unit.split())
+    unit = unit.replace(" - ", "-")
+    unit = unit.replace("- ", "-")
+    unit = unit.replace(" -", "-")
+    return unit.lower()
+
+
+def _convert_temperature_to_celsius(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"c", "°c"}:
+        return data_array
+    if normalized in {"k", "kelvin"}:
+        return data_array - 273.15
+    raise ValueError(f"Unsupported temperature unit '{unit}'. Expected C or K.")
+
+
+def _convert_precipitation_to_mm_per_day(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"mm d-1", "mm"}:
+        return data_array
+    if normalized in {"m d-1", "m", "meter", "metre", "m of water equivalent"}:
+        return data_array * 1000.0
+    if normalized in {"kg m-2 s-1"}:
+        return data_array * 86400.0
+    raise ValueError(
+        f"Unsupported precipitation unit '{unit}'. Expected mm d-1, m d-1, or kg m-2 s-1."
+    )
+
+
+def _convert_radiation_to_mj_per_m2_day(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"mj m-2 d-1", "mj m-2"}:
+        return data_array
+    if normalized in {"j m-2 d-1", "j m-2"}:
+        return data_array / 1_000_000.0
+    if normalized in {"w m-2", "w m^-2", "w m^(-2)"}:
+        return data_array * 0.0864
+    raise ValueError(
+        f"Unsupported radiation unit '{unit}'. Expected MJ m-2 d-1, J m-2, or W m-2."
+    )
+
+
+def _convert_cloud_cover_to_fraction(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"0-1", "fraction", "1"}:
+        return data_array
+    if normalized in {"%", "percent"}:
+        return data_array / 100.0
+    raise ValueError(f"Unsupported cloud-cover unit '{unit}'. Expected 0-1 or %.")
+
+
+def _convert_wind_to_km_per_hour(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"km h-1", "km h^-1", "km/h"}:
+        return data_array
+    if normalized in {"m s-1", "m s^-1", "m/s"}:
+        return data_array * 3.6
+    raise ValueError(f"Unsupported wind unit '{unit}'. Expected km h-1 or m s-1.")
+
+
+def _convert_relative_humidity(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"%", "percent"}:
+        return data_array
+    if normalized in {"0-1", "fraction", "1"}:
+        return data_array * 100.0
+    raise ValueError(f"Unsupported relative-humidity unit '{unit}'. Expected % or 0-1.")
+
+
+def _convert_vapor_pressure_to_mmhg(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"mmhg"}:
+        return data_array
+    if normalized in {"pa"}:
+        return data_array * 0.00750062
+    if normalized in {"kpa"}:
+        return data_array * 7.50062
+    raise ValueError(f"Unsupported vapor-pressure unit '{unit}'. Expected mmHg, Pa, or kPa.")
+
+
+def _convert_surface_pressure_to_pa(data_array: xr.DataArray, unit: str) -> xr.DataArray:
+    normalized = _normalize_unit_text(unit)
+    if normalized in {"pa"}:
+        return data_array
+    if normalized in {"kpa"}:
+        return data_array * 1000.0
+    raise ValueError(f"Unsupported surface-pressure unit '{unit}'. Expected Pa or kPa.")
+
+
+def _convert_dataarray_to_canonical_units(
+    data_array: xr.DataArray,
+    spec,
+) -> xr.DataArray:
+    source_unit = str(data_array.attrs.get("units", "")).strip()
+    if not source_unit:
+        raise ValueError(f"Variable '{data_array.name}' is missing the 'units' attribute.")
+
+    if spec.canonical_name in {"temperature_max", "temperature_min", "dewpoint_temperature"}:
+        converted = _convert_temperature_to_celsius(data_array, source_unit)
+    elif spec.canonical_name == "precipitation":
+        converted = _convert_precipitation_to_mm_per_day(data_array, source_unit)
+    elif spec.canonical_name in {"shortwave_radiation", "longwave_radiation"}:
+        converted = _convert_radiation_to_mj_per_m2_day(data_array, source_unit)
+    elif spec.canonical_name == "cloud_cover":
+        converted = _convert_cloud_cover_to_fraction(data_array, source_unit)
+    elif spec.canonical_name == "wind_speed":
+        converted = _convert_wind_to_km_per_hour(data_array, source_unit)
+    elif spec.canonical_name == "relative_humidity":
+        converted = _convert_relative_humidity(data_array, source_unit)
+    elif spec.canonical_name == "vapor_pressure":
+        converted = _convert_vapor_pressure_to_mmhg(data_array, source_unit)
+    elif spec.canonical_name == "surface_pressure":
+        converted = _convert_surface_pressure_to_pa(data_array, source_unit)
+    else:
+        converted = data_array
+
+    converted.attrs = dict(data_array.attrs)
+    converted.attrs["units"] = spec.canonical_unit
+    converted.attrs["source_units"] = source_unit
+    return converted
+
+
+def _validate_daily_time_axis(ds: xr.Dataset, file_label: str | None = None) -> None:
+    time_values = ds["time"].values
+    if len(time_values) < 2:
+        return
+
+    diffs = np.diff(time_values).astype("timedelta64[D]")
+    if np.any(diffs <= np.timedelta64(0, "D")):
+        prefix = f" in '{file_label}'" if file_label else ""
+        raise ValueError(f"Time coordinate must be strictly increasing{prefix}.")
+
+    expected_step = np.timedelta64(1, "D")
+    if np.any(diffs != expected_step):
+        prefix = f" in '{file_label}'" if file_label else ""
+        raise ValueError(f"Expected a daily time axis with 1-day increments{prefix}.")
+
+
+def _validate_aligned_time_axes(datasets: list[xr.Dataset]) -> None:
+    if not datasets:
+        return
+    reference = datasets[0]["time"].values
+    for dataset in datasets[1:]:
+        if not np.array_equal(reference, dataset["time"].values):
+            raise ValueError(
+                "Meteorological NetCDF files do not share the same time coordinate. "
+                "Preprocess them so all variables use the same daily dates."
+            )
+
+
+def _export_to_cequeau_names(ds: xr.Dataset, schema: MeteoSchema) -> xr.Dataset:
+    rename_map: dict[str, str] = {}
+    for variable_name in ds.data_vars:
+        export_name = schema.get_export_name(variable_name)
+        if variable_name != export_name:
+            rename_map[variable_name] = export_name
+    if rename_map:
+        ds = ds.rename(rename_map)
+    return ds
 
 
 def _standardize_dataset(ds: xr.Dataset, config: NetCDFGridConfig) -> xr.Dataset:

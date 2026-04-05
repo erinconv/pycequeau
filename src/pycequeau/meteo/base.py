@@ -3,13 +3,25 @@ from __future__ import annotations
 import xarray as xr
 
 from ..physiographic.base import Basin
+from .schema import DEFAULT_METEO_SCHEMA, MeteoSchema
 
 
 class Meteo:
-    """Shared basin context for meteorological data processors."""
+    """Base class for meteorological datasets used by pycequeau."""
 
-    def __init__(self, basin_struct: Basin) -> None:
+    def __init__(
+        self,
+        basin_struct: Basin,
+        ds: xr.Dataset,
+        schema: MeteoSchema | None = None,
+    ) -> None:
         self.basin_struct = basin_struct
+        self.schema = schema or DEFAULT_METEO_SCHEMA
+        self.ds = ds
+
+    @property
+    def variables(self) -> list[str]:
+        return list(self.ds.data_vars)
 
     @classmethod
     def cequeau_grid(cls, ds: xr.Dataset, basin_struct: Basin) -> xr.Dataset:
