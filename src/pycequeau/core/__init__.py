@@ -24,6 +24,7 @@ from .matlab_utils import (
     mat_field_value,
     mat_to_py,
 )
+from .unit_handler import UnitHandler
 
 __all__ = [
     "CopernicusDEMProcessor",
@@ -42,7 +43,8 @@ __all__ = [
     "mat_to_py",
     "intermidiate_interpolation",
     "fix_calendar",
-    "clip_netcdf"
+    "clip_netcdf",
+    "UnitHandler",
 ]
 
 # from . import missing
