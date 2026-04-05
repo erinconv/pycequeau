@@ -122,9 +122,9 @@ def units_ERA(ds: xr.Dataset):
         # the values were cumulated
         ds[var_name].values = 0.0864*ds[var_name].values
         ds = ds.rename({var_name: "longwaveRad"})
-    if var_name == "tmax" or var_name == "tmin":
+    if var_name == "tasmax" or var_name == "tasmin":
         # from K to degC
-        if var_name == "tmax":
+        if var_name == "tasmax":
             long_name = "Maximum daily air temperature"
             ds = ds.rename({var_name: "tMax"})
             var_name = "tMax"
