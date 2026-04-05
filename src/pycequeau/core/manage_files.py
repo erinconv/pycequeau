@@ -80,10 +80,24 @@ def dict_netCDF(files_path: str) -> dict:
                      for i in files_list if i.endswith(".nc")]
     vars_dict = {}
     for i, file in enumerate(filtered_list):
+        ds = xr.open_dataset(file, engine="netcdf4")
+        _check_data_vars_units(ds, file)
         var_name = "var"+str(i)
-        vars_dict.update({var_name: xr.open_dataset(file,
-                                                    engine="netcdf4")})
+        vars_dict.update({var_name: ds})
     return vars_dict
+
+
+def _check_data_vars_units(ds: xr.Dataset, file_path: str) -> None:
+    missing_units = [
+        var_name for var_name, data_array in ds.data_vars.items()
+        if "units" not in data_array.attrs
+    ]
+    if missing_units:
+        file_name = os.path.basename(file_path)
+        missing_str = ", ".join(missing_units)
+        raise ValueError(
+            f"Missing 'units' attribute in NetCDF data variables for '{file_name}': {missing_str}"
+        )
 
 
 def get_CORDEX_Dataset(vars_dict: dict) -> xr.Dataset:
