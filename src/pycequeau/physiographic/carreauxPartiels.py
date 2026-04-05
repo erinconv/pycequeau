@@ -198,10 +198,10 @@ def create_cequeau_stream_network(project_path: str,
                                 "geographic",
                                 "streams_cequeau.shp")
     gpdf_line.to_file(streams_file)
-    # main_channel_length = max(lengths)
-    # slope_channel = gpdf_line["slope"].where(
-    #     gpdf_line["slope"] > 0).mean()
-    return gpdf_line
+    main_channel_length = max(lengths)
+    slope_channel = gpdf_line["slope"].where(
+        gpdf_line["slope"] > 0).mean()
+    return gpdf_line, main_channel_length, slope_channel
 
 
 def save_outlet_point(project_path: str,

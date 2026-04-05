@@ -56,6 +56,8 @@ class Basin:
         self._Basin = None
         self._newSubBasins = None
         self._SubBasins = None
+        self._main_channel_length = None
+        self._slope_channel = None
         # Create project structure
         self._project_structure(file_list)
         # Create here the fishnet
@@ -776,8 +778,10 @@ class Basin:
         # Get river geometry
         geometry = CPs.get_river_geometry(self.CPfishnet, self.rtable)
         # Generate the stream network shp file and retrieve the river characteristics
-        azimuth = CPs.create_cequeau_stream_network(
+        azimuth, main_channel_length, slope_channel = CPs.create_cequeau_stream_network(
             self.project_path, self.CPfishnet, self.rtable, self._FAC, area_th=0)
+        self._main_channel_length = main_channel_length
+        self._slope_channel = slope_channel
         # Get the latituted and longitude centroids for each one of the CPs
         latlon_array = CPs.get_lat_lon_CP(self._CPfishnet)
         self.CPfishnet = self.CPfishnet.reindex(
@@ -857,6 +861,8 @@ class Basin:
             "nomBassinVersant": '',
             "carreauxEntiers": {},
             "carreauxPartiels": {},
+            "longCanalPrincipal": 0,
+            "penteCanalPrincipal": 0
         }
         # Export CE/CP as MATLAB struct arrays (one row = one struct) to
         # match existing InputStruct.mat layout used by CEQUEAU wrappers.
@@ -869,6 +875,8 @@ class Basin:
         self.bassinVersant["superficieCE"] = float(self._dx*self._dy*1.0e-6)
         self.bassinVersant["nomBassinVersant"] = self.name
         self.bassinVersant["nbCpCheminLong"] = float(self.outlet_routes.shape[1])
+        self.bassinVersant["longCanalPrincipal"] = self._main_channel_length
+        self.bassinVersant["penteCanalPrincipal"] = self._slope_channel
         # Save the structure as MATLAB file in the results folder.
         out_mat = os.path.join(self._project_path, "results", "bassinVersant.mat")
         savemat(

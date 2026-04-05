@@ -202,7 +202,6 @@ class Parameters:
             values (np.ndarray): _description_
         """
 
-        # self.create_cequeau_stream_network()
         self.transfert = {"exxkt": values[0],
                           "zn": self.compute_tc(),
                           "tc_struct": self.time_of_concentrations}
@@ -248,9 +247,11 @@ class Parameters:
         basin_area = self.basin_structure.bassinVersant.get(
             "superficieCE")*carreaux_partiels["pctSurface"].sum()/100
         # Create time of concentration structure
-        self.time_of_concentrations = {"Kirpich": self.tc_kirpich(self.main_channel_length, hmax - hmin),
-                                       "Giandotti": self.tc_giandotti(basin_area, self.main_channel_length, hmean - hmin),
-                                       "Department_of_public_work": self.tc_pw(self.main_channel_length, hmax - hmin)}
+        main_channel_length = self.basin_structure.bassinVersant.get("longCanalPrincipal")
+        # main_channel_length = self.basin_structure.get("longCanalPrincipal")
+        self.time_of_concentrations = {"Kirpich": self.tc_kirpich(main_channel_length, hmax - hmin),
+                                       "Giandotti": self.tc_giandotti(basin_area, main_channel_length, hmean - hmin),
+                                       "Department_of_public_work": self.tc_pw(main_channel_length, hmax - hmin)}
         # Convert to df
         df = pd.DataFrame.from_dict(self.time_of_concentrations,
                                     orient="index")
@@ -371,95 +372,6 @@ class Parameters:
         # Convert to days
         tc = tc/1440
         return tc
-
-    def create_cequeau_stream_network(self, area_th=0.01) -> float:
-        """_summary_
-
-        Args:
-            area_th (float, optional): _description_. Defaults to 0.01.
-
-        Returns:
-            float: _description_
-        """
-        # Open the
-        CP_fishnet = gpd.read_file(self.basin_structure.cp_fishnet_name)
-        cp_struct_name = os.path.join(self.basin_structure.project_path,
-                                      "results",
-                                      "carreauxPartiels.csv")
-        carreaux_partiels = pd.read_csv(cp_struct_name, index_col=0)
-        CP_fishnet["x_c"] = CP_fishnet.centroid.x
-        CP_fishnet["y_c"] = CP_fishnet.centroid.y
-
-        # Array to store the line shape
-        lines = np.zeros(len(CP_fishnet), dtype=LineString)
-        # Mask small streams
-        max_area = CP_fishnet["cumulArea"].max()
-        idx_small_area = CP_fishnet["cumulArea"] > area_th*max_area
-        CP_fishnet.index = CP_fishnet["newCPid"].values
-        carreaux_partiels.index = CP_fishnet["newCPid"].values
-        df_line = pd.DataFrame(columns=["names", "cumulArea", "slope"],
-                               data=np.empty(shape=[len(CP_fishnet), 3]),
-                               index=CP_fishnet.index)
-        df_line["cumulArea"] = CP_fishnet["cumulArea"].values
-        for i, _ in CP_fishnet.iterrows():
-            cp_aval = carreaux_partiels.loc[i, "idCPAval"]
-            if cp_aval == 0:
-                p1 = Point(CP_fishnet.loc[i, "x_c"],
-                           CP_fishnet.loc[i, "y_c"])
-                p2 = Point(CP_fishnet.loc[i, "x_c"],
-                           CP_fishnet.loc[i, "y_c"])
-                lines[i-1] = LineString([p2, p1])
-                # carreaux_partiels["altitudeMoy"]
-                df_line.loc[i, "names"] = f"CP{i} to CP{cp_aval}"
-                slope = 0
-                df_line.loc[i, "slope"] = slope
-            else:
-                p1 = Point(CP_fishnet.loc[i, "x_c"],
-                           CP_fishnet.loc[i, "y_c"])
-                p2 = Point(CP_fishnet.loc[cp_aval, "x_c"],
-                           CP_fishnet.loc[cp_aval, "y_c"])
-                lines[i-1] = LineString([p2, p1])
-                df_line.loc[i, "names"] = f"CP{i} to CP{cp_aval}"
-                dh = carreaux_partiels.loc[i, "altitudeMoy"] - \
-                    carreaux_partiels.loc[cp_aval, "altitudeMoy"]
-                df_line.loc[i, "slope"] = abs(dh)/lines[i-1].length
-
-        # df_line = df_line.loc[idx_small_area.values]
-        gpdf_line = gpd.GeoDataFrame(df_line,
-                                     geometry=lines,
-                                     crs=CP_fishnet.geometry.crs)
-        gpdf_line = gpdf_line.loc[idx_small_area.values]
-        # Open the outlet routes
-        outlet_file = os.path.join(self.basin_structure.project_path,
-                                   "results",
-                                   "outlet_routes.csv")
-        outlet_routes = pd.read_csv(outlet_file, header=None)
-        # find all the complete routes
-        idy, = np.where(outlet_routes.iloc[:, -1] != 0)
-        outlet_routes_complete = outlet_routes.iloc[idy, :]
-        # Compute the length of all the routes
-        lengths = []
-        # Find the largest CP with stream
-        idx_max = gpdf_line.index.max()
-        for i in range(len(outlet_routes_complete)):
-            routes = np.array(outlet_routes_complete.iloc[i, :])
-            routes = routes[routes < idx_max]
-            sub_gpdf = gpdf_line.loc[routes, :]
-            lengths.append(sub_gpdf.geometry.length.sum())
-        # Find the maximun length value
-        idx_longest_path = lengths.index(max(lengths))
-        main_route = np.array(outlet_routes_complete.iloc[idx_longest_path, :])
-        main_route = main_route[main_route < idx_max]
-        gpdf_line["main_path"] = 0
-        gpdf_line.loc[main_route, "main_path"] = 1
-        # Open the outlet routes
-        streams_file = os.path.join(self.basin_structure.project_path,
-                                    "geographic",
-                                    "streams_cequeau.shp")
-        gpdf_line.to_file(streams_file)
-        self.main_channel_length = max(lengths)
-        self.slope_channel = gpdf_line["slope"].where(
-            gpdf_line["slope"] > 0).mean()
 
     def set_fonte(self, values: np.ndarray, model: int):
         # Parameters for the cequeau model
