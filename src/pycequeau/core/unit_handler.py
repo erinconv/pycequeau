@@ -80,6 +80,22 @@ class UnitHandler:
         return values
 
     @classmethod
+    def convert_temperature_to_celsius(
+        cls,
+        values: np.ndarray | xr.DataArray,
+        source_unit: str,
+    ) -> np.ndarray | xr.DataArray:
+        return cls._convert_temperature_to_celsius(values, source_unit)
+
+    @classmethod
+    def convert_vapor_pressure_to_mmhg(
+        cls,
+        values: np.ndarray | xr.DataArray,
+        source_unit: str,
+    ) -> np.ndarray | xr.DataArray:
+        return cls._convert_vapor_pressure_to_mmhg(values, source_unit)
+
+    @classmethod
     def _convert_temperature_to_celsius(
         cls,
         values: np.ndarray | xr.DataArray,
