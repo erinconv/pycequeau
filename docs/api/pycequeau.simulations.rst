@@ -6,11 +6,18 @@ pycequeau.simulations package
    :undoc-members:
    :show-inheritance:
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   pycequeau.simulations.parameters
+
 Submodules
 ----------
 
 .. toctree::
    :maxdepth: 4
 
-   pycequeau.simulations.parameters
    pycequeau.simulations.simulations
