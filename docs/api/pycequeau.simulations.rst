@@ -3,8 +3,8 @@ pycequeau.simulations package
 
 .. automodule:: pycequeau.simulations
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 Submodules
 ----------

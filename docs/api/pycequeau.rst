@@ -3,8 +3,8 @@ pycequeau package
 
 .. automodule:: pycequeau
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 Subpackages
 -----------

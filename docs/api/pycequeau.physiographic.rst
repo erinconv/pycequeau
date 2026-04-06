@@ -3,8 +3,8 @@ pycequeau.physiographic package
 
 .. automodule:: pycequeau.physiographic
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 Submodules
 ----------

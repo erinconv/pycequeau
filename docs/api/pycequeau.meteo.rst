@@ -3,8 +3,8 @@ pycequeau.meteo package
 
 .. automodule:: pycequeau.meteo
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 Subpackages
 -----------
