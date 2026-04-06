@@ -97,6 +97,10 @@ class Basin:
         return self._Basin
 
     @property
+    def watershed_shapefile(self):
+        return self._Basin.replace(".tif", ".shp")
+
+    @property
     def DEM(self):
         return self._DEM
 

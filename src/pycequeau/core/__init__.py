@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 from .cop_processor import CopernicusDEMProcessor
+from .netcdf import (
+    intermidiate_interpolation,
+    fix_calendar,
+    clip_netcdf,
+    )
 from .utils import (
     polygonize_raster,
     fix_geometry,
@@ -19,6 +24,7 @@ from .matlab_utils import (
     mat_field_value,
     mat_to_py,
 )
+from .unit_handler import UnitHandler
 
 __all__ = [
     "CopernicusDEMProcessor",
@@ -35,6 +41,10 @@ __all__ = [
     "dataframe_to_struct_array",
     "mat_field_value",
     "mat_to_py",
+    "intermidiate_interpolation",
+    "fix_calendar",
+    "clip_netcdf",
+    "UnitHandler",
 ]
 
 # from . import missing
