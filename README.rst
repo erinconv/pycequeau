@@ -23,4 +23,4 @@ Alternatively, you can build and install the package from the source code by cop
     cd pycequeau
     pip install .
 
-The tutorials and examples on how to use the library can be found in: https://pycequeau.readthedocs.io/en/latest/. The documentation is still under development, so any feedback/suggestions or contributions are welcome.
+The tutorials and examples on how to use the library can be found in: https://pycequeau.readthedocs.io/en. The documentation is still under development, so any feedback/suggestions or contributions are welcome.
