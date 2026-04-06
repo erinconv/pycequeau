@@ -1,10 +1,10 @@
-pycequeau.physiographic
-=======================
+pycequeau.physiographic package
+===============================
 
 .. automodule:: pycequeau.physiographic
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Submodules
 ----------

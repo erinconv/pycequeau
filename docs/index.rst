@@ -41,7 +41,7 @@ Contents
    :maxdepth: 2
    :caption: API Reference
 
-   modules
+   api/modules
 
 Indices and tables
 ==================

@@ -1,10 +1,10 @@
-pycequeau
-=========
+pycequeau package
+=================
 
 .. automodule:: pycequeau
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Subpackages
 -----------
