@@ -35,6 +35,11 @@ exclude_patterns = [
     '.DS_Store',
 ]
 
+# Tutorial notebooks in this project are documentation examples with placeholder
+# paths and environment-specific setup. Render the stored notebook content
+# instead of executing them during docs builds.
+nbsphinx_execute = 'never'
+
 # Read the Docs does not provide the full native GIS stack used by pycequeau.
 # Mock these imports so autodoc can still import modules and render the API
 # reference instead of generating empty pages.
