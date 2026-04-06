@@ -18,7 +18,7 @@ Downloading the Mélèzes River data
 ----------------------------------
 To download the DEM we will need to place our QGIS canvas in the extent that covers the whole basin area. To find out where exactly your basin is located, you will require to have the outlet point coordinates and a basemap to help you to find the boundaries (in our case, we will use OpenMaps as basemap) as shown in the image:
 
-.. image:: figures/GRASS-tutorial/01-Extent.png
+.. image:: ../figures/GRASS-tutorial/01-Extent.png
   :width: 400
   :alt: Getting the extent of the basin
   :align: center
@@ -27,21 +27,21 @@ Now, open the SRTM-downloader plugin, and when you click on the ``Set canvas ext
 
 .. _EARTHDATA: https://urs.earthdata.nasa.gov//users/new
 
-.. image:: figures/GRASS-tutorial/02-Download.png
+.. image:: ../figures/GRASS-tutorial/02-Download.png
   :width: 300
   :alt: Download the DEM
   :align: center
 
 In this step, you will have several raster files that you need to merge. To do so, we will create a ``virtual raster`` to mosaic all the images by clicking on the ``Raster -> Miscellaneous -> Build virtual Raster`` . Select all the images and a directory to store the mosaic and run.
 
-.. image:: figures/GRASS-tutorial/03-Mosaic.png
+.. image:: ../figures/GRASS-tutorial/03-Mosaic.png
   :width: 300
   :alt: Mosaic image
   :align: center
 
 Now we need to discern the extent of the actual basin. To do so, we must trace the approximate watershed extent using a shapefile. To create a new shapefile, go to ``New shape file layer`` and fill up the options as follows:
 
-.. image:: figures/GRASS-tutorial/04-Extent-shp.png
+.. image:: ../figures/GRASS-tutorial/04-Extent-shp.png
   :width: 300
   :alt: Mosaic image
   :align: center
@@ -51,7 +51,7 @@ Now, let's crop this mosaic to remove any undesired areas. To do this, right cli
 #. **Define the reference system**: This is fundamental because the pycequeau toolbox works only in projected coordinates. For this case, the ``EPSG:32198`` is required. The selection of the Projected system is case-dependent, and you need to find out what is your EPSG code based on the location of your basin.
 #. **The extent to clip the basin**: You can calculate the extent to clip the mosaic by using the previously created polygon. Click in ``Calculate from layer`` and select the shpe layer to have the same extent.
 
-.. image:: figures/GRASS-tutorial/05-Export.png
+.. image:: ../figures/GRASS-tutorial/05-Export.png
   :width: 300
   :alt: Mosaic image
   :align: center
@@ -64,14 +64,14 @@ Delineating the watershed
 
 Once obtained the DEM file, let's open GRASS-GIS and create a new location based on the geographical metadata of our DEM file. In this case we will, I set up the project as follows:
 
-.. image:: figures/GRASS-tutorial/06-OpenGRASS.png
+.. image:: ../figures/GRASS-tutorial/06-OpenGRASS.png
   :width: 400
   :alt: Grass start
   :align: center
 
 Once create the region, in the right panel clic on new to create a new mapset and define your own basin name. Then double click to start working
 
-.. image:: figures/GRASS-tutorial/07-NewMapset.png
+.. image:: ../figures/GRASS-tutorial/07-NewMapset.png
   :width: 400
   :alt: new mapset
   :align: center
@@ -119,7 +119,7 @@ Run the following command:
 
 Now, you can see the DEM raster from the display window:
 
-.. image:: figures/GRASS-tutorial/08-DEM-GRASS.png
+.. image:: ../figures/GRASS-tutorial/08-DEM-GRASS.png
   :width: 400
   :alt: new mapset
   :align: center
@@ -150,7 +150,7 @@ Correcting the watershed delineation
 
 It is possible to obtain a wrong delineation of the watershed because of give ``X,Y`` do not fall into an actual ``Flow Accumulation`` pixel. To correct this, use the display window of GRASS to find the coordinates where this X,Y pair that fall in the FAC map:
 
-.. image:: figures/GRASS-tutorial/09-outlet_point.png
+.. image:: ../figures/GRASS-tutorial/09-outlet_point.png
   :width: 400
   :alt: new mapset
   :align: center
@@ -180,7 +180,7 @@ To retrieve the subbasin raster, run the following command lines:
 
 and this is the result
 
-.. image:: figures/GRASS-tutorial/09-Subbasins.png
+.. image:: ../figures/GRASS-tutorial/09-Subbasins.png
   :width: 400
   :alt: new mapset
   :align: center
