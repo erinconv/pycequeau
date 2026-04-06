@@ -10,7 +10,7 @@ dependencies:
   - nbconvert
   - nbsphinx
   - sphinx
-  - sphinx-rtd-theme>=3.1.0
+  - furo
   - nbsphinx-link
   - sphinx-copybutton
   - pip:
