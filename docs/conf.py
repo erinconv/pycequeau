@@ -7,13 +7,14 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 import sys
+from datetime import datetime
 sys.path.insert(0, os.path.abspath('../src'))
 sys.path.insert(0, os.path.abspath('..'))
 
 import pycequeau
 
 project = 'pycequeau'
-copyright = '2023, Eisinhower Rincon'
+copyright = f'{datetime.now().year}, Eisinhower Rincon'
 author = 'Eisinhower Rincon'
 release = pycequeau.__version__
 version = release

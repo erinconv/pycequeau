@@ -25,6 +25,7 @@ Contents
 
    Overview <self>
    Installation <readme>
+   Contribute <contribute>
 
 .. toctree::
    :maxdepth: 2
