@@ -21,8 +21,9 @@ Contents
 
 .. toctree::
    :maxdepth: 2
-   :caption: Getting started
+   :caption: Home
 
+   Overview <self>
    Installation <readme>
 
 .. toctree::

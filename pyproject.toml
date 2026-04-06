@@ -47,7 +47,7 @@ dev = [
     "ipykernel",
     # Sphinx documentation
     "sphinx",
-    "sphinx-rtd-theme",
+    "furo",
     "sphinx-copybutton",
     "nbsphinx",
     "sphinx-autodoc-typehints",
