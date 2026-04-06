@@ -98,6 +98,19 @@ _METEO_CALC_CLASS_NAMES = frozenset({
     'VaporPressureCalculator',
     'WindSpeedCalculator',
 })
+_SIMULATION_REEXPORT_DOCNAMES = frozenset({
+    'api/pycequeau.simulations',
+})
+_SIMULATION_REEXPORT_CLASS_NAMES = frozenset({
+    'SimulationParameterBase',
+    'BasinParameterBase',
+    'PycequeauParams',
+    'HydrologicalParameters',
+    'SnowmeltParameters',
+    'EvapotranspirationParameters',
+    'WaterQualityParameters',
+    'WaterTemperatureParameters',
+})
 
 
 def _autodoc_skip_meteo_calculator_reexports(app, what, name, obj, skip, options):
@@ -108,5 +121,14 @@ def _autodoc_skip_meteo_calculator_reexports(app, what, name, obj, skip, options
     return True
 
 
+def _autodoc_skip_simulations_reexports(app, what, name, obj, skip, options):
+    if app.env.docname not in _SIMULATION_REEXPORT_DOCNAMES:
+        return None
+    if name not in _SIMULATION_REEXPORT_CLASS_NAMES:
+        return None
+    return True
+
+
 def setup(app):
     app.connect('autodoc-skip-member', _autodoc_skip_meteo_calculator_reexports)
+    app.connect('autodoc-skip-member', _autodoc_skip_simulations_reexports)
