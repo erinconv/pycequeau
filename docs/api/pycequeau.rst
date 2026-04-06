@@ -1,5 +1,5 @@
-pycequeau
-=========
+pycequeau package
+=================
 
 .. automodule:: pycequeau
    :members:

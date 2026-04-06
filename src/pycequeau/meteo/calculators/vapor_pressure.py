@@ -81,10 +81,12 @@ class VaporPressureCalculator(MeteoCalculator):
 
             e_{a} = e_{s}(T_{dew})
 
-        Where:
-            - :math:`e_{a}` is the actual vapor pressure.
-            - :math:`e_{s}` is the saturated vapor pressure function.
-            - :math:`T_{dew}` is the dewpoint temperature.
+        Here :math:`e_{a}` is the actual vapor pressure,
+        :math:`e_{s}` is the saturated vapor pressure function,
+        and :math:`T_{dew}` is the dewpoint temperature.
+
+        The ``method`` argument selects the saturated-vapor-pressure
+        formulation used by :meth:`saturated_vapor_pressure`.
         """
         source_unit = str(dewpoint_temperature.attrs.get("units", "")).strip()
         if not source_unit:
@@ -134,6 +136,8 @@ class VaporPressureCalculator(MeteoCalculator):
             e_{a} = e_{s}(T_{dew})
 
         The returned values are expressed in :math:`mmHg`.
+        The ``method`` argument selects the saturated-vapor-pressure
+        formulation used by :meth:`saturated_vapor_pressure`.
         """
         vapor_pressure_pa = cls.saturated_vapor_pressure(
             dewpoint_temperature,
@@ -149,11 +153,38 @@ class VaporPressureCalculator(MeteoCalculator):
     ) -> np.ndarray | xr.DataArray:
         """Compute saturated vapor pressure from air temperature.
 
-        The formulation is selected with ``method``:
+        The formulation is selected with ``method``.
+        ``lowe_1977`` uses the polynomial approximation from Lowe (1977),
+        while ``murray_1967`` uses the exponential form from Murray (1967).
 
-            - ``lowe_1977`` uses the polynomial approximation from Lowe (1977).
-            - ``murray_1967`` uses the exponential form used in the Murray
-              implementation adopted in the legacy CORDEX workflow.
+        For ``lowe_1977``, the saturated vapor pressure is computed with two
+        sixth-order polynomials, one over liquid water and one over ice:
+
+        .. math::
+
+            \\begin{aligned}
+            e_{s,w}(T) &= 100 \\left(a_{0} + T\\left(a_{1} + T\\left(a_{2} + T\\left(a_{3} + T\\left(a_{4} + T\\left(a_{5} + a_{6}T\\right)\\right)\\right)\\right)\\right)\\right) \\\\
+            e_{s,i}(T) &= 100 \\left(a_{0} + T\\left(a_{1} + T\\left(a_{2} + T\\left(a_{3} + T\\left(a_{4} + T\\left(a_{5} + a_{6}T\\right)\\right)\\right)\\right)\\right)\\right)
+            \\end{aligned}
+
+        Here :math:`T` is the temperature in :math:`^\circ C`,
+        :math:`e_{s,w}` is the saturated vapor pressure over water in
+        :math:`Pa`, and :math:`e_{s,i}` is the saturated vapor pressure
+        over ice in :math:`Pa`.
+
+        For ``murray_1967``, Murray gives the convenient exponential form:
+
+        .. math::
+
+            \\begin{aligned}
+            e_{s,w}(T_{k}) &= 100 \\times 6.1078 \\exp\\left(17.2693882 \\frac{T_{k} - 273.16}{T_{k} - 35.86}\\right) \\\\
+            e_{s,i}(T_{k}) &= 100 \\times 6.1078 \\exp\\left(21.8745584 \\frac{T_{k} - 273.16}{T_{k} - 7.66}\\right)
+            \\end{aligned}
+
+        Here :math:`T_{k}` is the temperature in :math:`K`,
+        :math:`e_{s,w}` is the saturated vapor pressure over water in
+        :math:`Pa`, and :math:`e_{s,i}` is the saturated vapor pressure
+        over ice in :math:`Pa`.
 
         The result is returned in :math:`Pa`.
         """
@@ -171,29 +202,7 @@ class VaporPressureCalculator(MeteoCalculator):
         cls,
         temperature_celsius: np.ndarray | xr.DataArray,
     ) -> np.ndarray | xr.DataArray:
-        """Compute saturated vapor pressure with the Lowe (1977) formulation.
-
-        The saturated vapor pressure is computed with two sixth-order
-        polynomials, one over liquid water and one over ice:
-
-        .. math::
-
-            e_{s,w}(T) = 100 \left(a_{0} + T\left(a_{1} + T\left(a_{2} +
-            T\left(a_{3} + T\left(a_{4} + T\left(a_{5} + a_{6}T\right)\right)\right)\right)\right)\right)
-
-        .. math::
-
-            e_{s,i}(T) = 100 \left(a_{0} + T\left(a_{1} + T\left(a_{2} +
-            T\left(a_{3} + T\left(a_{4} + T\left(a_{5} + a_{6}T\right)\right)\right)\right)\right)\right)
-
-        Where:
-            - :math:`T` is the temperature in :math:`^\circ C`.
-            - :math:`e_{s,w}` is the saturated vapor pressure over water in :math:`Pa`.
-            - :math:`e_{s,i}` is the saturated vapor pressure over ice in :math:`Pa`.
-
-        The water polynomial is used for :math:`T \\ge 0`, and the ice
-        polynomial is used for :math:`T < 0`.
-        """
+        """Apply the Lowe (1977) saturated-vapor-pressure formulation."""
         values = temperature_celsius
         over_water = cls._lowe_over_water(values)
         over_ice = cls._lowe_over_ice(values)
@@ -206,32 +215,7 @@ class VaporPressureCalculator(MeteoCalculator):
         cls,
         temperature_celsius: np.ndarray | xr.DataArray,
     ) -> np.ndarray | xr.DataArray:
-        """Compute saturated vapor pressure with the Murray (1967) formulation.
-
-        Murray gives the convenient exponential form:
-
-        .. math::
-
-            e_{s,w}(T_{k}) = 100 \times 6.1078 \exp\left(
-            17.2693882 \frac{T_{k} - 273.16}{T_{k} - 35.86}\right)
-
-        .. math::
-
-            e_{s,i}(T_{k}) = 100 \times 6.1078 \exp\left(
-            21.8745584 \frac{T_{k} - 273.16}{T_{k} - 7.66}\right)
-
-        Where:
-            - :math:`T_{k}` is the temperature in :math:`K`.
-            - :math:`e_{s,w}` is the saturated vapor pressure over water in :math:`Pa`.
-            - :math:`e_{s,i}` is the saturated vapor pressure over ice in :math:`Pa`.
-            - over water, :math:`u = 7.5` and :math:`v = 237.3`.
-            - over ice, :math:`u = 9.5` and :math:`v = 265.5`.
-            - the transformed coefficients satisfy :math:`a = u \ln 10` and
-              :math:`b = 273.16 - v`.
-
-        The water branch is used for :math:`T \\ge 0`, and the ice branch is
-        used for :math:`T < 0`.
-        """
+        """Apply the Murray (1967) saturated-vapor-pressure formulation."""
         temperature_kelvin = temperature_celsius + 273.15
         over_water = cls._murray_over_water(temperature_kelvin)
         over_ice = cls._murray_over_ice(temperature_kelvin)

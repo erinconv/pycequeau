@@ -1,5 +1,5 @@
-pycequeau.physiographic
-=======================
+pycequeau.physiographic package
+===============================
 
 .. automodule:: pycequeau.physiographic
    :members:

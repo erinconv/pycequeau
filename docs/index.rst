@@ -24,24 +24,37 @@ Contents
    :caption: Getting started
 
    Installation <readme>
-   cop_dem
-   condition_dem
-   grass
-   flowlibs
 
 .. toctree::
    :maxdepth: 2
-   :caption: Tutorials & examples
+   :caption: Physiographic
 
-   notebooks/get_physio.ipynb
-   notebooks/get_meteo.ipynb
-   notebooks/get_params.ipynb
+   physiographic/cop_dem
+   physiographic/condition_dem
+   physiographic/grass
+   physiographic/flowlibs
+   physiographic/get_physio.ipynb
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Meteorological
+
+   meteo/era5
+   meteo/units
+   meteo/calculators
+   meteo/get_meteo.ipynb
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Simulation
+
+   simulation/get_params.ipynb
 
 .. toctree::
    :maxdepth: 2
    :caption: API Reference
 
-   modules
+   api/modules
 
 Indices and tables
 ==================

@@ -28,7 +28,12 @@ extensions = [
     'sphinx_copybutton',
 ]
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'build',
+    'Thumbs.db',
+    '.DS_Store',
+]
 
 # Read the Docs does not provide the full native GIS stack used by pycequeau.
 # Mock these imports so autodoc can still import modules and render the API
@@ -78,3 +83,30 @@ intersphinx_mapping = {
 epub_show_urls = 'footnote'
 
 master_doc = 'index'
+
+# -- Autodoc: avoid duplicate descriptions ---------------------------------
+# ``pycequeau.meteo`` (and the thin ``meteo_calculator`` re-export module) expose
+# calculator classes that are defined under ``pycequeau.meteo.calculators.*``.
+# Documenting them again on those pages duplicates the canonical autoclass entries
+# and triggers Sphinx "duplicate object description" warnings.
+
+_METEO_CALC_REEXPORT_DOCNAMES = frozenset({
+    'api/pycequeau.meteo',
+})
+_METEO_CALC_CLASS_NAMES = frozenset({
+    'MeteoCalculator',
+    'VaporPressureCalculator',
+    'WindSpeedCalculator',
+})
+
+
+def _autodoc_skip_meteo_calculator_reexports(app, what, name, obj, skip, options):
+    if app.env.docname not in _METEO_CALC_REEXPORT_DOCNAMES:
+        return None
+    if name not in _METEO_CALC_CLASS_NAMES:
+        return None
+    return True
+
+
+def setup(app):
+    app.connect('autodoc-skip-member', _autodoc_skip_meteo_calculator_reexports)

@@ -1,5 +1,5 @@
-pycequeau.simulations
-=====================
+pycequeau.simulations package
+=============================
 
 .. automodule:: pycequeau.simulations
    :members:

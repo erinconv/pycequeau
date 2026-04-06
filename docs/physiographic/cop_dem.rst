@@ -26,7 +26,7 @@ the Copernicus DEM for a given study area.
 The spatial extent of a basin can be determined using reference datasets such as HydroSHEDS or other
 authoritative hydrographic products. In this example, the Sainte-Marguerite River basin (shown below) is used as a case study.
 
-.. image:: figures/COP-DEM_tutorial/Marguerite_extent.png
+.. image:: ../figures/COP-DEM_tutorial/Marguerite_extent.png
    :width: 700
    :alt: Sainte-Marguerite River basin extent
    :align: center
