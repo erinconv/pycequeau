@@ -15,12 +15,14 @@ class Meteo:
         ds: xr.Dataset,
         schema: MeteoSchema | None = None,
     ) -> None:
+        """Store the basin context and the meteorological dataset."""
         self.basin_struct = basin_struct
         self.schema = schema or DEFAULT_METEO_SCHEMA
         self.ds = ds
 
     @property
     def variables(self) -> list[str]:
+        """Return the meteorological variable names available in the dataset."""
         return list(self.ds.data_vars)
 
     @classmethod
@@ -30,4 +32,5 @@ class Meteo:
 
     @classmethod
     def _cequeau_grid(cls, ds: xr.Dataset, basin_struct: Basin) -> xr.Dataset:
+        """Implement the CEQUEAU export for a concrete meteorological source."""
         raise NotImplementedError

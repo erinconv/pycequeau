@@ -15,16 +15,19 @@ class MeteoCalculator(ABC):
     source_variable_groups: tuple[tuple[str, ...], ...] = ()
 
     def __init_subclass__(cls, **kwargs) -> None:
+        """Register concrete calculator subclasses by derived variable name."""
         super().__init_subclass__(**kwargs)
         if cls.variable_name:
             MeteoCalculator.registry[cls.variable_name] = cls
 
     @classmethod
     def available_derivations(cls) -> tuple[str, ...]:
+        """Return the derived meteorological variables supported by the registry."""
         return tuple(cls.registry)
 
     @classmethod
     def get_calculator_class(cls, variable: str) -> type["MeteoCalculator"]:
+        """Resolve the calculator class that is responsible for a derived variable."""
         try:
             return cls.registry[variable]
         except KeyError as exc:
@@ -43,6 +46,7 @@ class MeteoCalculator(ABC):
         output_name: str | None = None,
         **kwargs,
     ) -> xr.Dataset:
+        """Build a derived-variable dataset from one or more NetCDF inputs."""
         calculator_class = cls.get_calculator_class(variable)
         source_dataarrays = calculator_class._load_required_sources(
             inputs,
@@ -68,6 +72,7 @@ class MeteoCalculator(ABC):
         output_name: str | None = None,
         **kwargs,
     ) -> str:
+        """Compute a derived variable and write it to a NetCDF file."""
         ds = cls.create_variable_dataset(
             inputs,
             variable,
@@ -84,6 +89,7 @@ class MeteoCalculator(ABC):
         cls,
         source_variable: str | tuple[str, ...] | list[str] | None,
     ) -> tuple[tuple[str, ...], ...]:
+        """Resolve source-variable overrides against the calculator requirements."""
         if source_variable is None:
             return cls.source_variable_groups
 
@@ -113,6 +119,7 @@ class MeteoCalculator(ABC):
         inputs: str | list[str] | tuple[str, ...],
         required_sources: tuple[tuple[str, ...], ...],
     ) -> dict[str, xr.DataArray]:
+        """Load the source data arrays required to compute a derived variable."""
         loaded_sources: dict[str, xr.DataArray] = {}
 
         for candidate_group in required_sources:
@@ -154,6 +161,7 @@ class MeteoCalculator(ABC):
         ds: xr.Dataset,
         output_name: str | None,
     ) -> str:
+        """Infer a default NetCDF output path from the source input location."""
         target_name = next(iter(ds.data_vars), output_name or cls.default_output_name or "output")
         if isinstance(inputs, str) and os.path.isdir(inputs):
             return os.path.join(inputs, f"{target_name}.nc")
@@ -173,6 +181,7 @@ class MeteoCalculator(ABC):
         folder_path: str,
         variable_names: tuple[str, ...],
     ) -> tuple[str, str]:
+        """Find the first NetCDF file in a folder containing one of the requested variables."""
         for file_name in sorted(os.listdir(folder_path)):
             if not file_name.endswith(".nc"):
                 continue
@@ -197,6 +206,7 @@ class MeteoCalculator(ABC):
         ds: xr.Dataset,
         variable_names: tuple[str, ...],
     ) -> str:
+        """Resolve the first matching variable name found in a dataset."""
         for variable_name in variable_names:
             if variable_name in ds.data_vars:
                 return variable_name
@@ -216,4 +226,5 @@ class MeteoCalculator(ABC):
         output_name: str,
         **kwargs,
     ) -> xr.Dataset:
+        """Build the derived-variable dataset for a concrete calculator."""
         raise NotImplementedError

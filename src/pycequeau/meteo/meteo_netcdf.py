@@ -42,6 +42,7 @@ class NetCDFMeteo(Meteo):
         config: NetCDFGridConfig | None = None,
         schema: MeteoSchema | None = None,
     ) -> None:
+        """Create a gridded meteorological workflow from a NetCDF dataset."""
         self.config = config or NetCDFGridConfig()
         self.schema = schema or DEFAULT_METEO_SCHEMA
         prepared_ds = self.prepare_dataset(ds, export_names=True)
@@ -63,6 +64,7 @@ class NetCDFMeteo(Meteo):
         config: NetCDFGridConfig | None = None,
         schema: MeteoSchema | None = None,
     ) -> "NetCDFMeteo":
+        """Build a :class:`NetCDFMeteo` instance from an in-memory dataset."""
         return cls(basin_struct, ds, config=config, schema=schema)
 
     @classmethod
@@ -73,6 +75,7 @@ class NetCDFMeteo(Meteo):
         config: NetCDFGridConfig | None = None,
         schema: MeteoSchema | None = None,
     ) -> "NetCDFMeteo":
+        """Load prepared meteorological NetCDF files from a folder."""
         meteo_schema = schema or DEFAULT_METEO_SCHEMA
         ds = cls.load_netcdf_dataset(vars_path, schema=meteo_schema, export_names=True)
         return cls(basin_struct, ds, config=config, schema=meteo_schema)
@@ -86,6 +89,7 @@ class NetCDFMeteo(Meteo):
         file_label: str | None = None,
         export_names: bool = False,
     ) -> xr.Dataset:
+        """Normalize a meteorological dataset to the internal NetCDFMeteo contract."""
         meteo_schema = schema or DEFAULT_METEO_SCHEMA
         ds = _standardize_input_dataset(ds)
 
@@ -117,6 +121,7 @@ class NetCDFMeteo(Meteo):
         schema: MeteoSchema | None = None,
         export_names: bool = True,
     ) -> xr.Dataset:
+        """Load and merge all supported NetCDF meteorological files in a folder."""
         meteo_schema = schema or DEFAULT_METEO_SCHEMA
         datasets: list[xr.Dataset] = []
         for file_name in sorted(os.listdir(vars_path)):
@@ -204,6 +209,7 @@ class NetCDFMeteo(Meteo):
 
     @classmethod
     def _cequeau_grid(cls, ds: xr.Dataset, basin_struct: Basin) -> xr.Dataset:
+        """Convert an interpolated gridded dataset to the CEQUEAU grid layout."""
         ce_df = _load_ce_table(basin_struct)
         return _build_cequeau_grid(ds, ce_df)
 
@@ -223,6 +229,7 @@ class NetCDFMeteo(Meteo):
         gdf.to_file(output_path)
 
 def _standardize_input_dataset(ds: xr.Dataset) -> xr.Dataset:
+    """Normalize coordinate names, calendar handling, and coordinate ordering."""
     rename_map: dict[str, str] = {}
     if "longitude" in ds.coords and "lon" not in ds.coords:
         rename_map["longitude"] = "lon"
@@ -265,6 +272,7 @@ def _standardize_input_dataset(ds: xr.Dataset) -> xr.Dataset:
 
 
 def _validate_daily_time_axis(ds: xr.Dataset, file_label: str | None = None) -> None:
+    """Check that the dataset uses a strictly increasing daily time axis."""
     time_values = ds["time"].values
     if len(time_values) < 2:
         return
@@ -281,6 +289,7 @@ def _validate_daily_time_axis(ds: xr.Dataset, file_label: str | None = None) -> 
 
 
 def _validate_aligned_time_axes(datasets: list[xr.Dataset]) -> None:
+    """Check that all meteorological datasets share the same time coordinate."""
     if not datasets:
         return
     reference = datasets[0]["time"].values
@@ -293,6 +302,7 @@ def _validate_aligned_time_axes(datasets: list[xr.Dataset]) -> None:
 
 
 def _export_to_cequeau_names(ds: xr.Dataset, schema: MeteoSchema) -> xr.Dataset:
+    """Rename canonical internal variable names to their CEQUEAU-facing names."""
     rename_map: dict[str, str] = {}
     for variable_name in ds.data_vars:
         export_name = schema.get_export_name(variable_name)
@@ -304,6 +314,7 @@ def _export_to_cequeau_names(ds: xr.Dataset, schema: MeteoSchema) -> xr.Dataset:
 
 
 def _standardize_dataset(ds: xr.Dataset, config: NetCDFGridConfig) -> xr.Dataset:
+    """Normalize coordinate names and ordering for interpolation operations."""
     rename_map: dict[str, str] = {}
     if "longitude" in ds.coords and config.lon_name not in ds.coords:
         rename_map["longitude"] = config.lon_name
@@ -325,6 +336,7 @@ def _standardize_dataset(ds: xr.Dataset, config: NetCDFGridConfig) -> xr.Dataset
 
 
 def _load_ce_table(basin_struct: Basin) -> pd.DataFrame:
+    """Load the CE grid index table used to reshape interpolated outputs."""
     ce_path = os.path.join(
         basin_struct.project_path,
         "results",
@@ -338,6 +350,7 @@ def _load_ce_table(basin_struct: Basin) -> pd.DataFrame:
 
 
 def _build_cequeau_grid(ds: xr.Dataset, ce_df: pd.DataFrame) -> xr.Dataset:
+    """Build the final CEQUEAU meteorological dataset from interpolated fields."""
     variable_names = [name for name in ds.data_vars if name != "CE"]
     if not variable_names:
         raise ValueError("The interpolated dataset does not contain meteorological variables.")
@@ -366,6 +379,7 @@ def _extract_ce_timeseries(
     ce_df: pd.DataFrame,
     variable_name: str,
 ) -> np.ndarray:
+    """Extract one time series per CE cell for a given meteorological variable."""
     ce_data = np.zeros((ds.sizes["time"], len(ce_df)), dtype=np.float32)
     for position, (_, ce_row) in enumerate(ce_df.iterrows()):
         i_index = int(ce_row["i"])
@@ -383,6 +397,7 @@ def _interpolate_dataset_to_ce_grid(
     method: str,
     config: NetCDFGridConfig,
 ) -> xr.Dataset:
+    """Interpolate a gridded meteorological dataset onto the CE raster grid."""
     ce_grid = gdal.Open(ce_grid_path, gdal.GA_ReadOnly)
     ce_array = np.array(ce_grid.GetRasterBand(1).ReadAsArray())
     row_count, col_count = ce_array.shape
@@ -447,6 +462,7 @@ def _get_netcdf_grid_points(
     watershed: ogr.DataSource,
     config: NetCDFGridConfig,
 ) -> np.ndarray:
+    """Find the gridded meteorological points that fall within the watershed extent."""
     xtup, ytup, _ = u.GetExtent(ce_grid)
     epsg_dem = projections.get_proj_code(ce_grid)
     x, y = projections.utm_to_latlon(
@@ -475,6 +491,7 @@ def _create_station_table(
     xy_pair: np.ndarray,
     config: NetCDFGridConfig,
 ) -> pd.DataFrame:
+    """Build the interpolation support table for the NetCDF grid points."""
     ce_array = ce_grid.ReadAsArray()
     row_count, col_count = ce_array.shape
     i = np.arange(col_count, dtype=int)
@@ -517,6 +534,7 @@ def _create_station_table(
 
 
 def _append_ce_grid(ds: xr.Dataset, ce_grid: gdal.Dataset) -> xr.Dataset:
+    """Attach the CE raster index layer to an interpolated meteorological dataset."""
     grid = ce_grid.ReadAsArray().astype(np.float16)
     grid[grid == 0] = np.nan
     ce_dataset = xr.Dataset(

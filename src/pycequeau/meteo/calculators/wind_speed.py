@@ -24,6 +24,7 @@ class WindSpeedCalculator(MeteoCalculator):
         output_name: str,
         **kwargs,
     ) -> xr.Dataset:
+        """Build a wind-speed dataset from two daily wind-component inputs."""
         source_names = list(source_dataarrays)
         u10 = source_dataarrays[source_names[0]]
         v10 = source_dataarrays[source_names[1]]
@@ -53,6 +54,7 @@ class WindSpeedCalculator(MeteoCalculator):
         *,
         output_name: str = "wind",
     ) -> xr.DataArray:
+        """Compose wind speed from two data-array wind components."""
         speed = cls.wind_speed_from_components_array(u10, v10)
         speed = speed.rename(output_name)
         speed.attrs = dict(u10.attrs)
@@ -70,10 +72,12 @@ class WindSpeedCalculator(MeteoCalculator):
         u10: np.ndarray | xr.DataArray,
         v10: np.ndarray | xr.DataArray,
     ) -> np.ndarray | xr.DataArray:
+        """Compose wind speed from array-like wind components."""
         return np.sqrt(u10**2 + v10**2)
 
     @staticmethod
     def _validate_compatible_inputs(u10: xr.DataArray, v10: xr.DataArray) -> None:
+        """Validate that the wind-component inputs are dimensionally compatible."""
         if u10.dims != v10.dims:
             raise ValueError(f"Wind component dimensions do not match: {u10.dims} vs {v10.dims}")
 
