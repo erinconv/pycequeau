@@ -1,0 +1,20 @@
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) div.nboutput.container div.output_area.stderr,
+  body[data-theme="dark"] div.nboutput.container div.output_area.stderr {
+    background: #4a1f28;
+    color: #f6d7dd;
+    border-left: 0.2rem solid #ff8fa3;
+  }
+
+  body:not([data-theme="light"]) div.nboutput.container div.output_area.stderr pre,
+  body:not([data-theme="light"]) div.nboutput.container div.output_area.stderr .highlight,
+  body[data-theme="dark"] div.nboutput.container div.output_area.stderr pre,
+  body[data-theme="dark"] div.nboutput.container div.output_area.stderr .highlight {
+    color: #f6d7dd;
+  }
+
+  body:not([data-theme="light"]) div.nboutput.container div.output_area.stderr .ansi-red-fg,
+  body[data-theme="dark"] div.nboutput.container div.output_area.stderr .ansi-red-fg {
+    color: #ffb3c1;
+  }
+}
