@@ -28,7 +28,12 @@ extensions = [
     'sphinx_copybutton',
 ]
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'build',
+    'Thumbs.db',
+    '.DS_Store',
+]
 
 # Read the Docs does not provide the full native GIS stack used by pycequeau.
 # Mock these imports so autodoc can still import modules and render the API
