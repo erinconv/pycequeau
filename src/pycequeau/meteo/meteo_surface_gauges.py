@@ -24,9 +24,9 @@ class StationMeteo(Meteo):
         )
 
     @classmethod
-    def from_files(cls, basin_struct: Basin, data_path: str) -> "StationMeteo":
+    def load_from_stations(cls, basin_struct: Basin, data_path: str) -> "StationMeteo":
         raise NotImplementedError(
-            "StationMeteo.from_files() is not implemented yet. "
+            "StationMeteo.load_from_stations() is not implemented yet. "
             "Surface-station support is planned for a future refactor."
         )
 

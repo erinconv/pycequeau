@@ -66,7 +66,7 @@ class NetCDFMeteo(Meteo):
         return cls(basin_struct, ds, config=config, schema=schema)
 
     @classmethod
-    def from_folder(
+    def load_from_netcdf(
         cls,
         basin_struct: Basin,
         vars_path: str,
@@ -74,7 +74,7 @@ class NetCDFMeteo(Meteo):
         schema: MeteoSchema | None = None,
     ) -> "NetCDFMeteo":
         meteo_schema = schema or DEFAULT_METEO_SCHEMA
-        ds = cls.load_folder_dataset(vars_path, schema=meteo_schema, export_names=True)
+        ds = cls.load_netcdf_dataset(vars_path, schema=meteo_schema, export_names=True)
         return cls(basin_struct, ds, config=config, schema=meteo_schema)
 
     @classmethod
@@ -110,7 +110,7 @@ class NetCDFMeteo(Meteo):
         return prepared
 
     @classmethod
-    def load_folder_dataset(
+    def load_netcdf_dataset(
         cls,
         vars_path: str,
         *,
