@@ -39,6 +39,9 @@ Contents
    :maxdepth: 2
    :caption: Meteorological
 
+   meteo/era5
+   meteo/units
+   meteo/calculators
    meteo/get_meteo.ipynb
 
 .. toctree::
